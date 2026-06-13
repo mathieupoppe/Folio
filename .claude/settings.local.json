@@ -13,7 +13,10 @@
       "Bash(sed -i '' '829,930d' src/folio.jsx)",
       "Bash(sed -n '824,832p' src/folio.jsx)",
       "Bash(git config *)",
-      "Bash(git add *)"
+      "Bash(git add *)",
+      "Bash(git commit -q -m 'Initial commit: Folio finance app *)",
+      "Bash(git check-ignore *)",
+      "Bash(git commit -q -m 'Update local Claude settings *)"
     ]
   }
 }
