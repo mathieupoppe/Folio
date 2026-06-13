@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm --version)",
+      "Read(//Users/mathieupoppe/**)",
+      "Read(//opt/homebrew/bin/**)",
+      "Bash(brew --version)",
+      "mcp__Claude_Preview__preview_start",
+      "Bash(grep -n \"DATA / BACKUP\\\\|export backup\\\\|Your data is saved\\\\|^      </div>$\\\\|^    </div>$\\\\|^  \\);$\\\\|^}$\" src/folio.jsx)",
+      "mcp__visualize__read_me",
+      "mcp__visualize__show_widget",
+      "Bash(grep -n \"{/\\\\* Pages\\\\|{/\\\\* ── ACCOUNT SHEET\\\\|maxWidth: 520, margin:\" src/folio.jsx)",
+      "Bash(sed -i '' '829,930d' src/folio.jsx)",
+      "Bash(sed -n '824,832p' src/folio.jsx)",
+      "Bash(git config *)",
+      "Bash(git add *)"
+    ]
+  }
+}
