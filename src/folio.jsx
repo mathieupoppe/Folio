@@ -20,6 +20,9 @@ import { GrowthChart, LogChart, NetWorthChart, Donut } from "./components/charts
 // (a power-user declutter toggle). Default on — best for the average user.
 const HintCtx = createContext(true);
 
+// Default dashboard widget order (users can reorder + hide in Edit mode).
+const DEFAULT_DASH = ["netWorth", "income", "stats", "health", "coach", "goals", "activity"];
+
 const SCENARIOS = [
   { label: "Conservative", rate: 7,  desc: "Slow decade" },
   { label: "Historical",   rate: 10, desc: "S&P 500 avg" },
@@ -505,6 +508,11 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
   // profile (name)
   const [profile, setProfile] = useState(s0.profile ?? { first: "", last: "" });
 
+  // dashboard layout: widget order + hidden set (persisted), plus transient edit mode
+  const [dashOrder,  setDashOrder]  = useState(s0.dashOrder  ?? DEFAULT_DASH);
+  const [dashHidden, setDashHidden] = useState(s0.dashHidden ?? []);
+  const [dashEdit,   setDashEdit]   = useState(false);
+
   // milestones view: "year" | "month"
   const [msView, setMsView] = useState("year");
 
@@ -532,6 +540,8 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
     if (Array.isArray(st.nwHistory))   setNwHistory(st.nwHistory);
     if (Array.isArray(st.goals))       setGoals(st.goals);
     if (Array.isArray(st.subs))        setSubs(st.subs);
+    if (Array.isArray(st.dashOrder))   setDashOrder(st.dashOrder);
+    if (Array.isArray(st.dashHidden))  setDashHidden(st.dashHidden);
     if (st.profile)  setProfile(st.profile);
     if (Array.isArray(d.entries)) setEntries(d.entries);
   };
@@ -557,7 +567,7 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
 
   // local cache always; debounced, conflict-aware cloud save once hydrated
   useEffect(() => {
-    const blob = { settings: { income, spendPct, investBuckets, spendBuckets, principal, monthly, years, rate, assets, liabilities, nwHistory, goals, subs, profile }, entries };
+    const blob = { settings: { income, spendPct, investBuckets, spendBuckets, principal, monthly, years, rate, assets, liabilities, nwHistory, goals, subs, profile, dashOrder, dashHidden }, entries };
     try { localStorage.setItem(LOCAL_KEY, JSON.stringify(blob)); }
     catch (e) { console.warn("Folio: couldn't save to local storage —", e?.message || e); }
     if (!hydrated.current || !userId) return;
@@ -578,7 +588,7 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
       }).catch(() => setSync("error"));
     }, 800);
     return () => clearTimeout(t);
-  }, [income, spendPct, investBuckets, spendBuckets, principal, monthly, years, rate, assets, liabilities, nwHistory, goals, subs, profile, entries, userId, retryNonce]);
+  }, [income, spendPct, investBuckets, spendBuckets, principal, monthly, years, rate, assets, liabilities, nwHistory, goals, subs, profile, dashOrder, dashHidden, entries, userId, retryNonce]);
 
   const addEntry = () => {
     const amt = parseFloat(logAmount);
@@ -711,10 +721,11 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
 
   const inputStyle = { width: "100%", padding: "10px 12px", borderRadius: "10px", border: "0.5px solid " + C.border, background: C.surface, fontSize: "13px", outline: "none", color: C.text };
 
-  // helper-text visibility (default on) + responsive width for the dashboard
+  // helper-text visibility (default on)
   const showHints = theme?.showHints !== false;
-  const wide = tab === "home" && homeView === "dash";
-  const shellMax = wide ? 1080 : 600;
+  // grid-style pages fill the width; everything else stays a readable column
+  const wideView = (tab === "home" && homeView === "dash") || (tab === "tools" && toolView === "menu");
+  const shellClass = wideView ? "shell" : "col";
 
   return (
     <HintCtx.Provider value={showHints}>
@@ -745,12 +756,20 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
         .ffade{ animation: folioFade .35s ease both; }
         @keyframes folioSpin{ to{ transform: rotate(360deg); } }
         .fspin{ animation: folioSpin .8s linear infinite; }
+        /* Responsive content shell — grows with the window on every page */
+        .shell{ width:100%; margin:0 auto; max-width:600px; }
+        .col{ width:100%; max-width:640px; margin:0 auto; } /* readable column for forms/settings */
         /* Dashboard: single column on phones, a real multi-column grid on desktop */
         .dash{ display:flex; flex-direction:column; }
+        /* Tools menu: list on phones, tiles that fill the width on desktop */
+        .toolgrid{ display:flex; flex-direction:column; }
         @media (min-width: 900px){
+          .shell{ max-width:1040px; }
           .dash{ display:grid; grid-template-columns: 1fr 1fr; gap:14px; align-items:start; }
           .dash > *{ margin-bottom:0 !important; }
           .dash .span2{ grid-column: 1 / -1; }
+          .toolgrid{ display:grid; grid-template-columns: 1fr 1fr; gap:10px; }
+          .toolgrid > *{ margin-bottom:0 !important; }
         }
         @media (prefers-reduced-motion: reduce){ *{ animation:none !important; transition:none !important; } }
       `}</style>
@@ -763,7 +782,7 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
       )}
 
       {/* Header */}
-      <div style={{ maxWidth: shellMax, margin: "0 auto", padding: isApp ? "calc(env(safe-area-inset-top) + 0.7rem) 1rem 0" : "1.4rem 1rem 0" }}>
+      <div className={shellClass} style={{ padding: isApp ? "calc(env(safe-area-inset-top) + 0.7rem) 1rem 0" : "1.4rem 1rem 0" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "10px" }}>
           {!isApp ? (
             <div style={{ display: "flex", alignItems: "center", gap: "11px" }}>
@@ -781,135 +800,186 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
       </div>
 
       {/* Pages */}
-      <div style={{ maxWidth: shellMax, margin: "0 auto", padding: "0.8rem 1rem 5rem" }}>
+      <div className={shellClass} style={{ padding: "0.8rem 1rem 5rem" }}>
 
         {/* ── HOME ── */}
-        {tab === "home" && homeView === "dash" && <div className="dash">
-          <Card className="span2">
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-              <div>
-                <div style={{ fontSize: "10.5px", fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: C.hint }}>Net worth</div>
-                <div className="tnum" style={{ fontSize: "38px", fontWeight: 800, letterSpacing: "-0.035em", color: netWorth >= 0 ? C.text : C.down, marginTop: "5px", lineHeight: 1.05 }}>{fmt(netWorth)}</div>
-              </div>
-              <button onClick={() => setHomeView("networth")} style={{ background: C.accent + "16", border: "0.5px solid " + C.accent + "3a", borderRadius: "10px", padding: "7px 13px", color: C.accent, fontSize: "12px", fontWeight: 700, cursor: "pointer" }}>Manage</button>
-            </div>
-            <div style={{ marginTop: "10px" }}>
-              <NetWorthChart history={nwHistory} period={nwPeriod} current={netWorth} />
-            </div>
-            {assets.length === 0 && liabilities.length === 0 && (
-              <button onClick={() => setHomeView("networth")} style={{ width: "100%", marginTop: "10px", padding: "10px", borderRadius: "10px", border: "0.5px dashed " + C.border, background: "transparent", color: C.sub, fontSize: "12px", cursor: "pointer", textAlign: "left" }}>
-                💡 Your net worth is €0 because no accounts are added yet. Tap <span style={{ color: C.accent, fontWeight: 600 }}>Manage</span> to add what you own and owe.
-              </button>
-            )}
-            <div style={{ display: "flex", gap: "6px", marginTop: "10px" }}>
-              {[["1D","1D"],["1W","1W"],["1M","1M"],["1Y","1Y"],["MAX","Max"]].map(([val, lbl]) => {
-                const on = nwPeriod === val;
-                return <button key={val} onClick={() => setNwPeriod(val)} style={{ flex: 1, padding: "6px 4px", borderRadius: "8px", border: "none", cursor: "pointer", fontSize: "12px", fontWeight: on ? 700 : 500, background: on ? C.accent : C.surface, color: on ? "#fff" : C.sub }}>{lbl}</button>;
-              })}
-            </div>
-          </Card>
-
-          <Card>
-            <Label text="Monthly income" hint="Your take-home pay after taxes." />
-            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-              <span style={{ fontSize: "26px", fontWeight: 700, color: C.hint }}>{curSymbol()}</span>
-              <input type="number" value={income} onChange={e => setIncome(Math.max(0, +e.target.value))}
-                aria-label="Monthly income after taxes" min="0"
-                style={{ fontSize: "26px", fontWeight: 700, background: "transparent", border: "none", outline: "none", color: C.text, width: "100%" }} />
-            </div>
-          </Card>
-
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: "8px", marginBottom: "10px" }}>
-            <Metric label="Investing / mo" value={fmt(investable)} desc="From your plan" positive={true} />
-            <Metric label="Avg. return"    value={blendedRet.toFixed(1) + "%"} desc="Blended" positive={true} />
-            <Metric label="Net invested"   value={fmtK(totalDep - totalWith)} desc="Logged so far" positive={true} />
-            <Metric label="Assets"         value={fmtK(totalAssets)} desc="Everything you own" positive={true} />
-          </div>
-
-          <Card>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
-              <div style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: C.hint }}>Financial health</div>
-              <button onClick={() => { setTab("tools"); setToolView("health"); }} style={{ background: "none", border: "none", color: C.accent, fontSize: "12px", fontWeight: 600, cursor: "pointer" }}>Details →</button>
-            </div>
-            <div style={{ display: "flex", alignItems: "baseline", gap: "8px" }}>
-              <span style={{ fontSize: "26px", fontWeight: 800, color: healthBand.c, letterSpacing: "-0.02em" }}>{healthScore}</span>
-              <span style={{ fontSize: "13px", color: C.sub }}>/ 100 · <span style={{ color: healthBand.c, fontWeight: 600 }}>{healthBand.t}</span></span>
-            </div>
-            <div style={{ height: "7px", borderRadius: "4px", background: C.border, overflow: "hidden", marginTop: "8px" }}>
-              <div style={{ height: "100%", width: healthScore + "%", background: healthBand.c, borderRadius: "4px", transition: "width 0.2s" }} />
-            </div>
-          </Card>
-
-          <button className="span2" onClick={() => { setTab("tools"); setToolView("advisor"); }} style={{
-            width: "100%", textAlign: "left", marginBottom: "10px", padding: "1rem 1.1rem", borderRadius: "16px", border: "none", cursor: "pointer",
-            background: C.accentGrad, boxShadow: C.glow, color: "#fff", display: "flex", alignItems: "center", gap: "12px",
-          }}>
-            <span style={{ width: 38, height: 38, borderRadius: "11px", flexShrink: 0, background: "rgba(255,255,255,0.18)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3l1.9 4.8L18.7 9.7l-4.8 1.9L12 16.4l-1.9-4.8L5.3 9.7l4.8-1.9z"/><path d="M19 14l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"/></svg>
-            </span>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: "14px", fontWeight: 800, letterSpacing: "-0.01em" }}>Ask your money coach</div>
-              <div style={{ fontSize: "12px", opacity: 0.95 }}>Get a personalized read on your finances</div>
-            </div>
-            <span style={{ fontSize: "18px", opacity: 0.9 }}>→</span>
-          </button>
-
-          {dueCharges.length > 0 && (
-            <Card style={{ border: "0.5px solid " + C.accent }}>
-              <Label text="Subscriptions due" hint={`${dueCharges.length} recurring charge${dueCharges.length > 1 ? "s" : ""} due this month, not yet logged.`} />
-              {dueCharges.map(c => (
-                <div key={c.subId} style={{ display: "flex", justifyContent: "space-between", fontSize: "13px", padding: "4px 0" }}>
-                  <span style={{ color: C.text }}>{c.name}<span style={{ color: C.hint }}> · {c.date}</span></span>
-                  <span style={{ color: C.down, fontWeight: 600 }}>−{fmt(c.amount)}</span>
+        {tab === "home" && homeView === "dash" && (() => {
+          const W = {
+            netWorth: (
+              <Card className="span2">
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                  <div>
+                    <div style={{ fontSize: "10.5px", fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: C.hint }}>Net worth</div>
+                    <div className="tnum" style={{ fontSize: "38px", fontWeight: 800, letterSpacing: "-0.035em", color: netWorth >= 0 ? C.text : C.down, marginTop: "5px", lineHeight: 1.05 }}>{fmt(netWorth)}</div>
+                  </div>
+                  <button onClick={() => setHomeView("networth")} style={{ background: C.accent + "16", border: "0.5px solid " + C.accent + "3a", borderRadius: "10px", padding: "7px 13px", color: C.accent, fontSize: "12px", fontWeight: 700, cursor: "pointer" }}>Manage</button>
                 </div>
-              ))}
-              <button onClick={logDueCharges} style={{ width: "100%", marginTop: "10px", padding: "11px", borderRadius: "10px", border: "none", background: C.accent, color: "#fff", fontWeight: 700, fontSize: "13px", cursor: "pointer" }}>
-                Log {dueCharges.length} charge{dueCharges.length > 1 ? "s" : ""}
-              </button>
-            </Card>
-          )}
-
-          {goals.length > 0 && (
-            <Card>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
-                <div style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: C.hint }}>Goals</div>
-                <button onClick={() => { setTab("tools"); setToolView("goals"); }} style={{ background: "none", border: "none", color: C.accent, fontSize: "12px", fontWeight: 600, cursor: "pointer" }}>Manage →</button>
+                <div style={{ marginTop: "10px" }}>
+                  <NetWorthChart history={nwHistory} period={nwPeriod} current={netWorth} />
+                </div>
+                {assets.length === 0 && liabilities.length === 0 && (
+                  <button onClick={() => setHomeView("networth")} style={{ width: "100%", marginTop: "10px", padding: "10px", borderRadius: "10px", border: "0.5px dashed " + C.border, background: "transparent", color: C.sub, fontSize: "12px", cursor: "pointer", textAlign: "left" }}>
+                    💡 Your net worth is €0 because no accounts are added yet. Tap <span style={{ color: C.accent, fontWeight: 600 }}>Manage</span> to add what you own and owe.
+                  </button>
+                )}
+                <div style={{ display: "flex", gap: "6px", marginTop: "10px" }}>
+                  {[["1D","1D"],["1W","1W"],["1M","1M"],["1Y","1Y"],["MAX","Max"]].map(([val, lbl]) => {
+                    const on = nwPeriod === val;
+                    return <button key={val} onClick={() => setNwPeriod(val)} style={{ flex: 1, padding: "6px 4px", borderRadius: "8px", border: "none", cursor: "pointer", fontSize: "12px", fontWeight: on ? 700 : 500, background: on ? C.accent : C.surface, color: on ? "#fff" : C.sub }}>{lbl}</button>;
+                  })}
+                </div>
+              </Card>
+            ),
+            income: (
+              <Card>
+                <Label text="Monthly income" hint="Your take-home pay after taxes." />
+                <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                  <span style={{ fontSize: "26px", fontWeight: 700, color: C.hint }}>{curSymbol()}</span>
+                  <input type="number" value={income} onChange={e => setIncome(Math.max(0, +e.target.value))}
+                    aria-label="Monthly income after taxes" min="0"
+                    style={{ fontSize: "26px", fontWeight: 700, background: "transparent", border: "none", outline: "none", color: C.text, width: "100%" }} />
+                </div>
+              </Card>
+            ),
+            stats: (
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: "8px", marginBottom: "10px" }}>
+                <Metric label="Investing / mo" value={fmt(investable)} desc="From your plan" positive={true} />
+                <Metric label="Avg. return"    value={blendedRet.toFixed(1) + "%"} desc="Blended" positive={true} />
+                <Metric label="Net invested"   value={fmtK(totalDep - totalWith)} desc="Logged so far" positive={true} />
+                <Metric label="Assets"         value={fmtK(totalAssets)} desc="Everything you own" positive={true} />
               </div>
-              {goals.slice(0, 3).map(g => {
-                const pct = g.target > 0 ? Math.min(100, (g.saved / g.target) * 100) : 0;
-                return (
-                  <div key={g.id} style={{ marginBottom: "10px" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", marginBottom: "4px" }}>
-                      <span style={{ color: C.text, fontWeight: 500 }}>{g.name}</span>
-                      <span style={{ color: C.sub }}>{fmt(g.saved || 0)} / {fmt(g.target)}</span>
+            ),
+            health: (
+              <Card>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
+                  <div style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: C.hint }}>Financial health</div>
+                  <button onClick={() => { setTab("tools"); setToolView("health"); }} style={{ background: "none", border: "none", color: C.accent, fontSize: "12px", fontWeight: 600, cursor: "pointer" }}>Details →</button>
+                </div>
+                <div style={{ display: "flex", alignItems: "baseline", gap: "8px" }}>
+                  <span style={{ fontSize: "26px", fontWeight: 800, color: healthBand.c, letterSpacing: "-0.02em" }}>{healthScore}</span>
+                  <span style={{ fontSize: "13px", color: C.sub }}>/ 100 · <span style={{ color: healthBand.c, fontWeight: 600 }}>{healthBand.t}</span></span>
+                </div>
+                <div style={{ height: "7px", borderRadius: "4px", background: C.border, overflow: "hidden", marginTop: "8px" }}>
+                  <div style={{ height: "100%", width: healthScore + "%", background: healthBand.c, borderRadius: "4px", transition: "width 0.2s" }} />
+                </div>
+              </Card>
+            ),
+            coach: (
+              <button onClick={() => { setTab("tools"); setToolView("advisor"); }} style={{
+                width: "100%", textAlign: "left", marginBottom: "10px", padding: "1rem 1.1rem", borderRadius: "16px", border: "none", cursor: "pointer",
+                background: C.accentGrad, boxShadow: C.glow, color: "#fff", display: "flex", alignItems: "center", gap: "12px",
+              }}>
+                <span style={{ width: 38, height: 38, borderRadius: "11px", flexShrink: 0, background: "rgba(255,255,255,0.18)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3l1.9 4.8L18.7 9.7l-4.8 1.9L12 16.4l-1.9-4.8L5.3 9.7l4.8-1.9z"/><path d="M19 14l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"/></svg>
+                </span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: "14px", fontWeight: 800, letterSpacing: "-0.01em" }}>Ask your money coach</div>
+                  {showHints && <div style={{ fontSize: "12px", opacity: 0.95 }}>Get a personalized read on your finances</div>}
+                </div>
+                <span style={{ fontSize: "18px", opacity: 0.9 }}>→</span>
+              </button>
+            ),
+            goals: goals.length > 0 ? (
+              <Card>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
+                  <div style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: C.hint }}>Goals</div>
+                  <button onClick={() => { setTab("tools"); setToolView("goals"); }} style={{ background: "none", border: "none", color: C.accent, fontSize: "12px", fontWeight: 600, cursor: "pointer" }}>Manage →</button>
+                </div>
+                {goals.slice(0, 3).map(g => {
+                  const pct = g.target > 0 ? Math.min(100, (g.saved / g.target) * 100) : 0;
+                  return (
+                    <div key={g.id} style={{ marginBottom: "10px" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", marginBottom: "4px" }}>
+                        <span style={{ color: C.text, fontWeight: 500 }}>{g.name}</span>
+                        <span style={{ color: C.sub }}>{fmt(g.saved || 0)} / {fmt(g.target)}</span>
+                      </div>
+                      <div style={{ height: "6px", borderRadius: "3px", background: C.border, overflow: "hidden" }}>
+                        <div style={{ height: "100%", width: pct + "%", background: pct >= 100 ? C.up : C.accent, borderRadius: "3px", transition: "width 0.2s" }} />
+                      </div>
                     </div>
-                    <div style={{ height: "6px", borderRadius: "3px", background: C.border, overflow: "hidden" }}>
-                      <div style={{ height: "100%", width: pct + "%", background: pct >= 100 ? C.up : C.accent, borderRadius: "3px", transition: "width 0.2s" }} />
-                    </div>
-                  </div>
-                );
-              })}
-            </Card>
-          )}
+                  );
+                })}
+              </Card>
+            ) : null,
+            activity: (
+              <Card>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
+                  <div style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: C.hint }}>Recent activity</div>
+                  <button onClick={() => setTab("log")} style={{ background: "none", border: "none", color: C.accent, fontSize: "12px", fontWeight: 600, cursor: "pointer" }}>View all →</button>
+                </div>
+                {entries.length === 0
+                  ? <div style={{ fontSize: "12px", color: C.hint, padding: "6px 0" }}>No transactions yet — add your first in the Log tab.</div>
+                  : entries.slice(0, 3).map(e => (
+                      <div key={e.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderTop: "0.5px solid " + C.border }}>
+                        <div>
+                          <div style={{ fontSize: "13px", fontWeight: 600, color: e.type === "deposit" ? C.up : C.down }}>{e.type === "deposit" ? "+" : "−"}{fmt(e.amount)}</div>
+                          {e.note && <div style={{ fontSize: "11px", color: C.hint, marginTop: "1px" }}>{e.note}</div>}
+                        </div>
+                        <span style={{ fontSize: "11px", color: C.hint }}>{e.date}</span>
+                      </div>
+                    ))}
+              </Card>
+            ),
+          };
+          const META = { netWorth: "Net worth", income: "Monthly income", stats: "Key stats", health: "Financial health", coach: "AI coach", goals: "Goals", activity: "Recent activity" };
+          const SPAN = { netWorth: true, coach: true, activity: true };
+          const fullOrder = [...dashOrder.filter(id => DEFAULT_DASH.includes(id)), ...DEFAULT_DASH.filter(id => !dashOrder.includes(id))];
+          const ordered = fullOrder.filter(id => W[id]); // only widgets that currently have content
+          // Reorder within the *visible* widgets so moves never skip an absent one (e.g. Goals when empty).
+          const move = (id, dir) => {
+            const i = ordered.indexOf(id), j = i + dir;
+            if (i < 0 || j < 0 || j >= ordered.length) return;
+            const next = [...ordered];
+            [next[i], next[j]] = [next[j], next[i]];
+            const rest = fullOrder.filter(x => !next.includes(x)); // keep absent widgets (parked at end)
+            setDashOrder([...next, ...rest]);
+          };
+          const toggle = id => setDashHidden(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+          const ctrl = dis => ({ width: 30, height: 28, borderRadius: "8px", border: "0.5px solid " + C.border, background: C.surface, color: dis ? C.hint : C.text, fontSize: "13px", fontWeight: 700, cursor: dis ? "default" : "pointer", opacity: dis ? 0.45 : 1, flexShrink: 0 });
+          return (
+            <>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
+                {dashEdit ? <span style={{ fontSize: "12px", color: C.hint }}>Reorder or hide your widgets.</span> : <span />}
+                <button onClick={() => setDashEdit(e => !e)} style={{ padding: "7px 15px", borderRadius: "10px", border: "0.5px solid " + (dashEdit ? C.accent : C.border), background: dashEdit ? C.accent : C.surface, color: dashEdit ? "#fff" : C.sub, fontSize: "12px", fontWeight: 700, cursor: "pointer" }}>{dashEdit ? "✓ Done" : "✎ Customize"}</button>
+              </div>
 
-          <Card className="span2">
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
-              <div style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: C.hint }}>Recent activity</div>
-              <button onClick={() => setTab("log")} style={{ background: "none", border: "none", color: C.accent, fontSize: "12px", fontWeight: 600, cursor: "pointer" }}>View all →</button>
-            </div>
-            {entries.length === 0
-              ? <div style={{ fontSize: "12px", color: C.hint, padding: "6px 0" }}>No transactions yet — add your first in the Log tab.</div>
-              : entries.slice(0, 3).map(e => (
-                  <div key={e.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderTop: "0.5px solid " + C.border }}>
-                    <div>
-                      <div style={{ fontSize: "13px", fontWeight: 600, color: e.type === "deposit" ? C.up : C.down }}>{e.type === "deposit" ? "+" : "−"}{fmt(e.amount)}</div>
-                      {e.note && <div style={{ fontSize: "11px", color: C.hint, marginTop: "1px" }}>{e.note}</div>}
+              {dueCharges.length > 0 && !dashEdit && (
+                <Card style={{ border: "0.5px solid " + C.accent }}>
+                  <Label text="Subscriptions due" hint={`${dueCharges.length} recurring charge${dueCharges.length > 1 ? "s" : ""} due this month, not yet logged.`} />
+                  {dueCharges.map(c => (
+                    <div key={c.subId} style={{ display: "flex", justifyContent: "space-between", fontSize: "13px", padding: "4px 0" }}>
+                      <span style={{ color: C.text }}>{c.name}<span style={{ color: C.hint }}> · {c.date}</span></span>
+                      <span style={{ color: C.down, fontWeight: 600 }}>−{fmt(c.amount)}</span>
                     </div>
-                    <span style={{ fontSize: "11px", color: C.hint }}>{e.date}</span>
-                  </div>
-                ))}
-          </Card>
-        </div>}
+                  ))}
+                  <button onClick={logDueCharges} style={{ width: "100%", marginTop: "10px", padding: "11px", borderRadius: "10px", border: "none", background: C.accent, color: "#fff", fontWeight: 700, fontSize: "13px", cursor: "pointer" }}>
+                    Log {dueCharges.length} charge{dueCharges.length > 1 ? "s" : ""}
+                  </button>
+                </Card>
+              )}
+
+              <div className="dash">
+                {ordered.map((id, idx) => {
+                  const hidden = dashHidden.includes(id);
+                  if (hidden && !dashEdit) return null;
+                  return (
+                    <div key={id} className={SPAN[id] ? "span2" : ""} style={{ opacity: hidden ? 0.45 : 1 }}>
+                      {dashEdit && (
+                        <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "8px" }}>
+                          <span style={{ flex: 1, fontSize: "11px", fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: C.hint, minWidth: 0 }}>{META[id]}</span>
+                          <button aria-label="Move up" onClick={() => move(id, -1)} disabled={idx === 0} style={ctrl(idx === 0)}>↑</button>
+                          <button aria-label="Move down" onClick={() => move(id, 1)} disabled={idx === ordered.length - 1} style={ctrl(idx === ordered.length - 1)}>↓</button>
+                          <button onClick={() => toggle(id)} style={{ ...ctrl(false), width: "auto", padding: "0 12px", color: hidden ? C.accent : C.sub }}>{hidden ? "Show" : "Hide"}</button>
+                        </div>
+                      )}
+                      {W[id]}
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          );
+        })()}
 
         {/* ── HOME → NET WORTH EDITOR ── */}
         {tab === "home" && homeView === "networth" && <>
@@ -953,19 +1023,33 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
 
         {/* ── TOOLS MENU ── */}
         {tab === "tools" && toolView === "menu" && <>
-          <Card style={{ paddingTop: "2px", paddingBottom: "2px" }}>
-            <NavRow label="AI money coach" desc="Personalized analysis of your finances" onClick={() => setToolView("advisor")} />
-            <NavRow label="Split planner" desc="Plan spending & investing from your income" onClick={() => setToolView("split")} />
-            <NavRow label="Growth simulator" desc="See how investments compound over time" onClick={() => setToolView("grow")} />
-            <NavRow label="Financial health" desc="Your overall money score" onClick={() => setToolView("health")} />
-            <NavRow label="Goals" desc="Set savings targets & track progress" onClick={() => setToolView("goals")} />
-            <NavRow label="Savings rate" desc="What % of income you keep" onClick={() => setToolView("savings")} />
-            <NavRow label="Calendar" desc="When your subscriptions are due" onClick={() => setToolView("calendar")} />
-            <NavRow label="Subscriptions" desc="Track recurring costs" onClick={() => setToolView("subs")} />
-            <NavRow label="Debt payoff" desc="Estimate your debt-free date" onClick={() => setToolView("debt")} />
-            <NavRow label="FIRE number" desc="What you need to retire" onClick={() => setToolView("fire")} />
-            <NavRow label="Emergency fund" desc="Months of expenses covered" onClick={() => setToolView("emergency")} />
-          </Card>
+          <div className="toolgrid">
+            {[
+              ["advisor", "AI money coach", "Personalized analysis of your finances"],
+              ["split", "Split planner", "Plan spending & investing from your income"],
+              ["grow", "Growth simulator", "See how investments compound over time"],
+              ["health", "Financial health", "Your overall money score"],
+              ["goals", "Goals", "Set savings targets & track progress"],
+              ["savings", "Savings rate", "What % of income you keep"],
+              ["calendar", "Calendar", "When your subscriptions are due"],
+              ["subs", "Subscriptions", "Track recurring costs"],
+              ["debt", "Debt payoff", "Estimate your debt-free date"],
+              ["fire", "FIRE number", "What you need to retire"],
+              ["emergency", "Emergency fund", "Months of expenses covered"],
+            ].map(([id, label, desc]) => (
+              <button key={id} onClick={() => setToolView(id)} style={{
+                textAlign: "left", cursor: "pointer", background: C.cardGrad, border: "0.5px solid " + C.border,
+                boxShadow: C.shadow + ", " + C.hi, borderRadius: "16px", padding: "14px 16px", marginBottom: "10px",
+                display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px",
+              }}>
+                <span style={{ minWidth: 0 }}>
+                  <span style={{ display: "block", fontSize: "14px", fontWeight: 700, color: C.text }}>{label}</span>
+                  {showHints && <span style={{ display: "block", fontSize: "12px", color: C.hint, marginTop: "2px" }}>{desc}</span>}
+                </span>
+                <span style={{ color: C.hint, fontSize: "16px", flexShrink: 0 }}>›</span>
+              </button>
+            ))}
+          </div>
           <div style={{ fontSize: "11px", color: C.hint, textAlign: "center", padding: "6px 0" }}>More tools coming soon.</div>
         </>}
 
@@ -1693,7 +1777,7 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
 
       {/* Bottom tab bar */}
       <div style={{ position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 40, background: C.glass, backdropFilter: "blur(20px) saturate(160%)", WebkitBackdropFilter: "blur(20px) saturate(160%)", borderTop: "0.5px solid " + C.border, boxShadow: "0 -12px 30px -18px rgba(0,0,0,0.6)", paddingBottom: "env(safe-area-inset-bottom)" }}>
-        <div style={{ maxWidth: shellMax, margin: "0 auto", display: "flex", gap: "4px", padding: "8px 10px" }}>
+        <div style={{ maxWidth: 600, margin: "0 auto", display: "flex", gap: "4px", padding: "8px 10px" }}>
           {[["home","Home"],["tools","Tools"],["log","Activity"],["more","More"]].map(([id, lbl]) => {
             const active = tab === id;
             return (

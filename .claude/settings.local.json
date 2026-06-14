@@ -32,7 +32,9 @@
       "Bash(git commit -q -m 'Add AI money coach: instant insights + Claude-powered deep analysis *)",
       "Bash(git commit -q -m 'Premium redesign: layered surfaces, depth, glow, glassy nav *)",
       "Bash(grep -n 'const inputStyle =\\\\|return \\(\\\\s*$\\\\|minHeight: \"100vh\", background: C.bg' src/folio.jsx)",
-      "Bash(git commit -q -m 'Settings: feedback tabs, helper-text toggle, responsive layout, loading spinner *)"
+      "Bash(git commit -q -m 'Settings: feedback tabs, helper-text toggle, responsive layout, loading spinner *)",
+      "Bash(grep -n 'const s0 =\\\\|useState\\(s0\\\\.\\\\|const blob = {\\\\|if \\(Array.isArray\\(st\\\\.\\\\|}, \\\\[income, spendPct' src/folio.jsx)",
+      "Bash(git commit -q -m 'Edit-mode dashboard \\(reorder + hide\\) + responsive on every page *)"
     ]
   }
 }
