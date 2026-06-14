@@ -95,17 +95,33 @@ export function NetWorthChart({ history, period, current }) {
   }
   const vals = pts.map(p => p.value);
   const maxV = Math.max(...vals), minV = Math.min(...vals), range = (maxV - minV) || 1;
+  const flat = maxV === minV; // no movement yet — avoid the half-filled-rectangle look
   const W = 340, H = 120, PL = 8, PR = 8, PT = 10, PB = 8, iw = W - PL - PR, ih = H - PT - PB;
   const px = i => PL + (i / (pts.length - 1)) * iw;
-  const py = v => maxV === minV ? PT + ih / 2 : PT + ih - ((v - minV) / range) * ih;
+  const py = v => flat ? PT + ih / 2 : PT + ih - ((v - minV) / range) * ih;
   const col = pts[pts.length - 1].value >= pts[0].value ? C.up : C.down;
+  const lastX = px(pts.length - 1), lastY = py(pts[pts.length - 1].value);
+
+  // Flat data: a single clean baseline with end dot — no big gradient block.
+  if (flat) {
+    const y = (PT + ih / 2).toFixed(1);
+    return (
+      <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: "block", overflow: "visible" }}>
+        <line x1={PL} y1={y} x2={W - PR} y2={y} stroke={C.border} strokeWidth="2" strokeLinecap="round" strokeDasharray="2 6" />
+        <circle cx={lastX} cy={y} r="3.5" fill={C.accent} />
+        <text x={W / 2} y={Number(y) + 22} textAnchor="middle" fontSize="10" fill={C.hint}>No change yet — your line grows as your net worth moves.</text>
+      </svg>
+    );
+  }
+
   const line = pts.map((p, i) => `${i === 0 ? "M" : "L"}${px(i).toFixed(1)},${py(p.value).toFixed(1)}`).join(" ");
-  const area = line + ` L${px(pts.length - 1).toFixed(1)},${(PT + ih).toFixed(1)} L${px(0).toFixed(1)},${(PT + ih).toFixed(1)} Z`;
+  const area = line + ` L${lastX.toFixed(1)},${(PT + ih).toFixed(1)} L${px(0).toFixed(1)},${(PT + ih).toFixed(1)} Z`;
   return (
     <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: "block", overflow: "visible" }}>
       <defs><linearGradient id="nwg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={col} stopOpacity="0.2" /><stop offset="100%" stopColor={col} stopOpacity="0" /></linearGradient></defs>
       <path d={area} fill="url(#nwg)" />
       <path d={line} fill="none" stroke={col} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx={lastX.toFixed(1)} cy={lastY.toFixed(1)} r="3.5" fill={col} />
     </svg>
   );
 }

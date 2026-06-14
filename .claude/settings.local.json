@@ -26,7 +26,9 @@
       "Bash(git commit -q -m 'Product: PWA, recurring charges, dashboard goals \\(#16 #17 #18\\) *)",
       "Bash(git commit -q -m 'Launch readiness: RLS, privacy policy, chart module split \\(#7 #19 #20\\) *)",
       "Bash(git commit -q -m 'Unlink PWA manifest in dev so preview loads the app, not the splash icon *)",
-      "Bash(git commit -q -m 'Remove favicon link so preview never opens the bare icon file *)"
+      "Bash(git commit -q -m 'Remove favicon link so preview never opens the bare icon file *)",
+      "Skill(claude-api)",
+      "Skill(claude-api:*)"
     ]
   }
 }

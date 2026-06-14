@@ -12,6 +12,7 @@ import {
   milestoneProgress,
   dueSubscriptionCharges,
 } from "./lib/finance";
+import Advisor from "./Advisor";
 import { GrowthChart, LogChart, NetWorthChart, Donut } from "./components/charts";
 
 const SCENARIOS = [
@@ -676,6 +677,17 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
   // net worth milestones
   const { next: nextMilestone, last: lastMilestone, pct: milestonePct } = milestoneProgress(netWorth, NW_MILESTONES);
 
+  // compact snapshot fed to the AI coach + on-device insights (the user's own data)
+  const advisorData = {
+    currency: theme?.currency || "EUR",
+    symbol: curSymbol(),
+    income, spendPct, investBuckets, spendBuckets,
+    assets, liabilities, goals, subs,
+    totalAssets, totalLiab, netWorth, healthScore,
+    nwHistory: nwHistory.slice(-30),
+    transactions: entries.length,
+  };
+
   // record one net-worth snapshot per day so the Home graph can show growth over time
   useEffect(() => {
     if (!hydrated.current) return;
@@ -791,6 +803,20 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
             </div>
           </Card>
 
+          <button onClick={() => { setTab("tools"); setToolView("advisor"); }} style={{
+            width: "100%", textAlign: "left", marginBottom: "10px", padding: "1rem 1.1rem", borderRadius: "16px", border: "none", cursor: "pointer",
+            background: `linear-gradient(135deg, ${C.accent}, ${C.accentD})`, color: "#fff", display: "flex", alignItems: "center", gap: "12px",
+          }}>
+            <span style={{ width: 38, height: 38, borderRadius: "11px", flexShrink: 0, background: "rgba(255,255,255,0.18)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3l1.9 4.8L18.7 9.7l-4.8 1.9L12 16.4l-1.9-4.8L5.3 9.7l4.8-1.9z"/><path d="M19 14l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"/></svg>
+            </span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: "14px", fontWeight: 800, letterSpacing: "-0.01em" }}>Ask your money coach</div>
+              <div style={{ fontSize: "12px", opacity: 0.95 }}>Get a personalized read on your finances</div>
+            </div>
+            <span style={{ fontSize: "18px", opacity: 0.9 }}>→</span>
+          </button>
+
           {dueCharges.length > 0 && (
             <Card style={{ border: "0.5px solid " + C.accent }}>
               <Label text="Subscriptions due" hint={`${dueCharges.length} recurring charge${dueCharges.length > 1 ? "s" : ""} due this month, not yet logged.`} />
@@ -891,6 +917,7 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
         {/* ── TOOLS MENU ── */}
         {tab === "tools" && toolView === "menu" && <>
           <Card style={{ paddingTop: "2px", paddingBottom: "2px" }}>
+            <NavRow label="AI money coach" desc="Personalized analysis of your finances" onClick={() => setToolView("advisor")} />
             <NavRow label="Split planner" desc="Plan spending & investing from your income" onClick={() => setToolView("split")} />
             <NavRow label="Growth simulator" desc="See how investments compound over time" onClick={() => setToolView("grow")} />
             <NavRow label="Financial health" desc="Your overall money score" onClick={() => setToolView("health")} />
@@ -903,6 +930,12 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
             <NavRow label="Emergency fund" desc="Months of expenses covered" onClick={() => setToolView("emergency")} />
           </Card>
           <div style={{ fontSize: "11px", color: C.hint, textAlign: "center", padding: "6px 0" }}>More tools coming soon.</div>
+        </>}
+
+        {/* ── AI COACH (Tools) ── */}
+        {tab === "tools" && toolView === "advisor" && <>
+          <BackBar title="AI money coach" onBack={() => setToolView("menu")} />
+          <Advisor data={advisorData} />
         </>}
 
         {/* ── SPLIT (Tools) ── */}
