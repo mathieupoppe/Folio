@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { C, fmt, fmtK, curSymbol, ACCENTS, CURRENCIES, LANGUAGES } from "./theme";
-import { fetchData, saveData } from "./cloud";
+import { fetchData, saveDataSafe } from "./cloud";
 import {
   calcGrowth as calcGrowthLib,
   growthRows as growthRowsLib,
@@ -554,6 +554,33 @@ const ICONS = {
   tools: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>,
 };
 
+// Small cloud-sync status pill shown in the header.
+function SyncBadge({ state, userId, onRetry }) {
+  if (!userId) {
+    return <span style={{ fontSize: "10px", color: C.hint }}>On this device</span>;
+  }
+  if (state === "error") {
+    return (
+      <button onClick={onRetry} style={{ display: "flex", alignItems: "center", gap: "5px", background: C.down + "18", border: "0.5px solid " + C.down, borderRadius: "20px", padding: "4px 10px", color: C.down, fontSize: "11px", fontWeight: 600, cursor: "pointer" }}>
+        <span style={{ width: 6, height: 6, borderRadius: "50%", background: C.down }} /> Not saved · Retry
+      </button>
+    );
+  }
+  const map = {
+    loading: { t: "Loading…", c: C.hint },
+    saving:  { t: "Saving…",  c: C.accent },
+    saved:   { t: "Saved",    c: C.up },
+    idle:    { t: "",         c: C.hint },
+  };
+  const s = map[state] || map.idle;
+  if (!s.t) return <span />;
+  return (
+    <span style={{ display: "flex", alignItems: "center", gap: "5px", fontSize: "11px", color: s.c, fontWeight: 600 }}>
+      <span style={{ width: 6, height: 6, borderRadius: "50%", background: s.c }} /> {s.t}
+    </span>
+  );
+}
+
 const LOCAL_KEY = "folio-data";
 
 // read the local cache once (instant paint), migrating from the old split keys if needed
@@ -642,31 +669,47 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
 
   // hydrate from the user's cloud row on login (cloud wins)
   const hydrated = useRef(false);
+  const lastSyncedAt = useRef(null); // server updated_at we last saw, for conflict checks
   const [sync, setSync] = useState("idle"); // idle | loading | saving | saved | error
+  const [retryNonce, setRetryNonce] = useState(0); // bump to force a re-save after an error
   useEffect(() => {
     if (!userId) { hydrated.current = true; return; }
     let cancelled = false;
     setSync("loading");
-    fetchData(userId).then(remote => {
+    fetchData(userId).then(({ data, updatedAt }) => {
       if (cancelled) return;
-      if (remote) applyData(remote);
+      if (data) applyData(data);
+      lastSyncedAt.current = updatedAt;
       hydrated.current = true;
       setSync("saved");
     }).catch(() => { hydrated.current = true; setSync("error"); });
     return () => { cancelled = true; };
   }, [userId]);
 
-  // local cache always; debounced cloud save once hydrated
+  // local cache always; debounced, conflict-aware cloud save once hydrated
   useEffect(() => {
     const blob = { settings: { income, spendPct, investBuckets, spendBuckets, principal, monthly, years, rate, assets, liabilities, nwHistory, goals, subs, profile }, entries };
-    try { localStorage.setItem(LOCAL_KEY, JSON.stringify(blob)); } catch {}
+    try { localStorage.setItem(LOCAL_KEY, JSON.stringify(blob)); }
+    catch (e) { console.warn("Folio: couldn't save to local storage —", e?.message || e); }
     if (!hydrated.current || !userId) return;
     setSync("saving");
     const t = setTimeout(() => {
-      saveData(userId, blob).then(() => setSync("saved")).catch(() => setSync("error"));
+      saveDataSafe(userId, blob, lastSyncedAt.current).then(res => {
+        if (res.conflict) {
+          // Another device saved newer data — pull it in rather than overwrite.
+          fetchData(userId).then(({ data, updatedAt }) => {
+            if (data) applyData(data);
+            lastSyncedAt.current = updatedAt;
+            setSync("saved");
+          }).catch(() => setSync("error"));
+        } else {
+          lastSyncedAt.current = res.updatedAt;
+          setSync("saved");
+        }
+      }).catch(() => setSync("error"));
     }, 800);
     return () => clearTimeout(t);
-  }, [income, spendPct, investBuckets, spendBuckets, principal, monthly, years, rate, assets, liabilities, nwHistory, goals, subs, profile, entries, userId]);
+  }, [income, spendPct, investBuckets, spendBuckets, principal, monthly, years, rate, assets, liabilities, nwHistory, goals, subs, profile, entries, userId, retryNonce]);
 
   const addEntry = () => {
     const amt = parseFloat(logAmount);
@@ -722,17 +765,9 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
     const reader = new FileReader();
     reader.onload = () => {
       try {
-        const d  = JSON.parse(reader.result);
-        const st = d.settings || {};
-        if (st.income    != null) setIncome(st.income);
-        if (st.spendPct  != null) setSpendPct(st.spendPct);
-        if (Array.isArray(st.investBuckets)) setInvestBuckets(st.investBuckets);
-        if (Array.isArray(st.spendBuckets))  setSpendBuckets(st.spendBuckets);
-        if (st.principal != null) setPrincipal(st.principal);
-        if (st.monthly   != null) setMonthly(st.monthly);
-        if (st.years     != null) setYears(st.years);
-        if (st.rate      != null) setRate(st.rate);
-        if (Array.isArray(d.entries)) persist(d.entries);
+        const d = JSON.parse(reader.result);
+        if (!d || (!d.settings && !Array.isArray(d.entries))) throw new Error("not a backup");
+        applyData(d); // restores every field, including assets/liabilities/goals/subs/profile
       } catch {
         alert("Couldn't read that file — make sure it's a Folio backup.");
       }
@@ -801,17 +836,20 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
 
       {/* Header */}
       <div style={{ maxWidth: 520, margin: "0 auto", padding: isApp ? "calc(env(safe-area-inset-top) + 0.7rem) 1rem 0" : "1.4rem 1rem 0" }}>
-        {!isApp && (
-          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-            <div style={{ width: 34, height: 34, borderRadius: "10px", background: C.accent, display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "10px" }}>
+          {!isApp ? (
+            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+              <div style={{ width: 34, height: 34, borderRadius: "10px", background: C.accent, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>
+              </div>
+              <div>
+                <div style={{ fontSize: "17px", fontWeight: 800, letterSpacing: "-0.03em", color: C.text }}>Folio</div>
+                <div style={{ fontSize: "11px", color: C.hint }}>Your personal finance tool</div>
+              </div>
             </div>
-            <div>
-              <div style={{ fontSize: "17px", fontWeight: 800, letterSpacing: "-0.03em", color: C.text }}>Folio</div>
-              <div style={{ fontSize: "11px", color: C.hint }}>Your personal finance tool</div>
-            </div>
-          </div>
-        )}
+          ) : <span />}
+          <SyncBadge state={sync} userId={userId} onRetry={() => setRetryNonce(n => n + 1)} />
+        </div>
       </div>
 
       {/* Pages */}
