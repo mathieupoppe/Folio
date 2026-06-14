@@ -23,7 +23,8 @@
       "Bash(git commit -q -m 'Robustness: error boundary, sync conflict guard, status UI \\(#1-#6\\) *)",
       "Bash(git commit -q -m 'UX & accessibility: empty state, confirm-delete, aria labels, loaders \\(#11-#15\\) *)",
       "Bash(npm run *)",
-      "Bash(git commit -q -m 'Product: PWA, recurring charges, dashboard goals \\(#16 #17 #18\\) *)"
+      "Bash(git commit -q -m 'Product: PWA, recurring charges, dashboard goals \\(#16 #17 #18\\) *)",
+      "Bash(git commit -q -m 'Launch readiness: RLS, privacy policy, chart module split \\(#7 #19 #20\\) *)"
     ]
   }
 }
