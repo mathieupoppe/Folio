@@ -28,7 +28,9 @@
       "Bash(git commit -q -m 'Unlink PWA manifest in dev so preview loads the app, not the splash icon *)",
       "Bash(git commit -q -m 'Remove favicon link so preview never opens the bare icon file *)",
       "Skill(claude-api)",
-      "Skill(claude-api:*)"
+      "Skill(claude-api:*)",
+      "Bash(git commit -q -m 'Add AI money coach: instant insights + Claude-powered deep analysis *)",
+      "Bash(git commit -q -m 'Premium redesign: layered surfaces, depth, glow, glassy nav *)"
     ]
   }
 }

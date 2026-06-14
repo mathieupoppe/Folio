@@ -1,11 +1,22 @@
 // Structural palettes per mode. accent/up/down are layered on top.
+// Premium depth tokens: cardTop/card give cards a soft top-to-bottom gradient,
+// shadow/shadowSm add elevation, hi is an inset top-edge highlight, glass is the
+// translucent bottom-nav fill.
 const DARK = {
-  bg: "#0c0e14", surface: "#13161f", card: "#181c28", border: "#252a3d",
-  text: "#eef0f8", sub: "#8892b0", hint: "#525870",
+  bg: "#080a11", surface: "#11141d", card: "#171b27", cardTop: "#1c2231", border: "#2a3145",
+  text: "#f1f3fb", sub: "#9aa3bd", hint: "#5b6279",
+  shadow: "0 18px 40px -20px rgba(0,0,0,0.75), 0 4px 14px -8px rgba(0,0,0,0.55)",
+  shadowSm: "0 8px 20px -12px rgba(0,0,0,0.6)",
+  hi: "inset 0 1px 0 rgba(255,255,255,0.06)",
+  glass: "rgba(12,15,23,0.72)",
 };
 const LIGHT = {
-  bg: "#eceef4", surface: "#f4f5fa", card: "#ffffff", border: "#e0e3ed",
-  text: "#1a1d27", sub: "#5c6379", hint: "#9298ad",
+  bg: "#eceef5", surface: "#f5f6fb", card: "#ffffff", cardTop: "#ffffff", border: "#e4e7f1",
+  text: "#171a24", sub: "#5a6178", hint: "#959cb0",
+  shadow: "0 16px 36px -18px rgba(28,40,80,0.20), 0 4px 12px -6px rgba(28,40,80,0.10)",
+  shadowSm: "0 8px 20px -12px rgba(28,40,80,0.16)",
+  hi: "inset 0 1px 0 rgba(255,255,255,0.9)",
+  glass: "rgba(255,255,255,0.72)",
 };
 
 // selectable accent colors
@@ -57,6 +68,7 @@ export const LANGUAGES = [
 export const C = {
   up: "#3dd68c", down: "#f05c5c",
   ...DARK, accent: "#5b7fff", accentD: "#3a5ce8",
+  cardGrad: "", accentGrad: "", glow: "", bgGlow: "",
 };
 
 export const DEFAULT_THEME = { mode: "dark", accent: "blue", currency: "EUR", language: "en" };
@@ -64,10 +76,23 @@ export const DEFAULT_THEME = { mode: "dark", accent: "blue", currency: "EUR", la
 let CUR = CURRENCIES[0]; // active currency
 
 export function applyTheme(mode, accentKey) {
-  Object.assign(C, mode === "light" ? LIGHT : DARK);
+  const isLight = mode === "light";
+  Object.assign(C, isLight ? LIGHT : DARK);
   const a = ACCENTS.find(x => x.key === accentKey) || ACCENTS[0];
   C.accent = a.accent; C.accentD = a.accentD;
-  if (typeof document !== "undefined") document.body.style.background = C.bg;
+  // derived premium tokens (depend on the freshly-assigned mode + accent)
+  C.cardGrad = `linear-gradient(180deg, ${C.cardTop}, ${C.card})`;
+  C.accentGrad = `linear-gradient(135deg, ${C.accent}, ${C.accentD})`;
+  C.glow = `0 10px 26px -10px ${C.accent}${isLight ? "59" : "6e"}`;
+  // soft pools of accent light behind the page — subtle, never garish
+  C.bgGlow = isLight
+    ? `radial-gradient(900px 480px at 50% -8%, ${C.accent}1f, transparent 62%), radial-gradient(700px 420px at 100% 8%, ${C.accent}14, transparent 60%)`
+    : `radial-gradient(900px 520px at 50% -10%, ${C.accent}24, transparent 60%), radial-gradient(760px 460px at 100% 6%, ${C.accent}16, transparent 58%)`;
+  if (typeof document !== "undefined") {
+    document.body.style.background = C.bg;
+    document.body.style.backgroundImage = C.bgGlow;
+    document.body.style.backgroundAttachment = "fixed";
+  }
 }
 
 export function applyCurrency(code) {

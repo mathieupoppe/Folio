@@ -76,23 +76,23 @@ function EditableMoney({ value, onCommit, color }) {
 }
 
 function Card({ children, style }) {
-  return <div style={{ background: C.card, borderRadius: "16px", border: "0.5px solid " + C.border, padding: "1rem 1.1rem", marginBottom: "10px", ...style }}>{children}</div>;
+  return <div style={{ background: C.cardGrad, borderRadius: "18px", border: "0.5px solid " + C.border, boxShadow: C.shadow + ", " + C.hi, padding: "1.05rem 1.15rem", marginBottom: "12px", ...style }}>{children}</div>;
 }
 
 function Label({ text, hint }) {
   return (
     <div style={{ marginBottom: "12px" }}>
-      <div style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: C.hint }}>{text}</div>
-      {hint && <div style={{ fontSize: "11px", color: C.hint, marginTop: "2px" }}>{hint}</div>}
+      <div style={{ fontSize: "10.5px", fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: C.hint }}>{text}</div>
+      {hint && <div style={{ fontSize: "11px", color: C.hint, marginTop: "3px", lineHeight: 1.45 }}>{hint}</div>}
     </div>
   );
 }
 
 function Metric({ label, value, desc, positive }) {
   return (
-    <div style={{ background: C.surface, borderRadius: "12px", padding: "12px 14px", border: "0.5px solid " + C.border }}>
-      <div style={{ fontSize: "11px", color: C.hint, marginBottom: "4px" }}>{label}</div>
-      <div style={{ fontSize: "18px", fontWeight: 700, color: positive === false ? C.down : positive === true ? C.up : C.text, marginBottom: "2px" }}>{value}</div>
+    <div style={{ background: C.surface, borderRadius: "15px", padding: "13px 15px", border: "0.5px solid " + C.border, boxShadow: C.hi }}>
+      <div style={{ fontSize: "10.5px", fontWeight: 600, letterSpacing: "0.04em", color: C.hint, marginBottom: "5px" }}>{label}</div>
+      <div className="tnum" style={{ fontSize: "19px", fontWeight: 700, letterSpacing: "-0.01em", color: positive === false ? C.down : positive === true ? C.up : C.text, marginBottom: "2px" }}>{value}</div>
       {desc && <div style={{ fontSize: "10px", color: C.hint }}>{desc}</div>}
     </div>
   );
@@ -705,17 +705,32 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
   const inputStyle = { width: "100%", padding: "10px 12px", borderRadius: "10px", border: "0.5px solid " + C.border, background: C.surface, fontSize: "13px", outline: "none", color: C.text };
 
   return (
-    <div style={{ minHeight: "100vh", background: C.bg, fontFamily: "'Inter','Segoe UI',system-ui,sans-serif", color: C.text }}>
+    <div style={{ minHeight: "100vh", background: C.bg, backgroundImage: C.bgGlow, backgroundAttachment: "fixed", fontFamily: "'Inter','Segoe UI',system-ui,sans-serif", color: C.text }}>
       <style>{`
         * { box-sizing: border-box; }
+        body{ -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale; text-rendering:optimizeLegibility; font-feature-settings:"cv11" 1,"ss01" 1; }
         ::placeholder{ color:${C.hint}; }
         input,select{ color:${C.text}; }
+        /* tabular, slightly tightened figures for money + stats */
+        .tnum{ font-variant-numeric: tabular-nums; font-feature-settings:"tnum" 1,"ss01" 1; }
+        /* every button gets a tactile press + smooth feel */
+        button{ transition: transform .12s ease, box-shadow .2s ease, filter .18s ease, background .18s ease, color .18s ease; -webkit-tap-highlight-color:transparent; }
+        button:active{ transform: translateY(1px) scale(0.995); }
+        button:focus-visible{ outline:2px solid ${C.accent}; outline-offset:2px; }
+        a:focus-visible, input:focus-visible{ outline:2px solid ${C.accent}; outline-offset:2px; }
         input[type=range].sl{ -webkit-appearance:none; appearance:none; height:6px; border-radius:3px; outline:none; padding:0; }
         input[type=range].sl::-webkit-slider-runnable-track{ height:6px; border-radius:3px; background:transparent; }
-        input[type=range].sl::-webkit-slider-thumb{ -webkit-appearance:none; appearance:none; width:16px; height:16px; border-radius:50%; background:var(--sl); border:2px solid ${C.card}; cursor:pointer; margin-top:-5px; }
+        input[type=range].sl::-webkit-slider-thumb{ -webkit-appearance:none; appearance:none; width:17px; height:17px; border-radius:50%; background:var(--sl); border:2px solid ${C.card}; box-shadow:0 2px 6px -1px rgba(0,0,0,0.4); cursor:pointer; margin-top:-5.5px; }
         input[type=range].sl::-moz-range-track{ height:6px; border-radius:3px; background:transparent; }
-        input[type=range].sl::-moz-range-thumb{ width:14px; height:14px; border-radius:50%; background:var(--sl); border:2px solid ${C.card}; cursor:pointer; }
+        input[type=range].sl::-moz-range-thumb{ width:15px; height:15px; border-radius:50%; background:var(--sl); border:2px solid ${C.card}; box-shadow:0 2px 6px -1px rgba(0,0,0,0.4); cursor:pointer; }
+        ::-webkit-scrollbar{ width:11px; height:11px; }
+        ::-webkit-scrollbar-thumb{ background:${C.border}; border-radius:8px; border:3px solid transparent; background-clip:content-box; }
+        ::-webkit-scrollbar-thumb:hover{ background:${C.hint}; background-clip:content-box; }
+        ::-webkit-scrollbar-track{ background:transparent; }
         @keyframes folioBar{ 0%{ left:-40%; } 100%{ left:100%; } }
+        @keyframes folioFade{ from{ opacity:0; transform:translateY(6px); } to{ opacity:1; transform:none; } }
+        .ffade{ animation: folioFade .35s ease both; }
+        @media (prefers-reduced-motion: reduce){ *{ animation:none !important; transition:none !important; } }
       `}</style>
 
       {/* Loading bar while pulling the latest data from the cloud */}
@@ -729,12 +744,12 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
       <div style={{ maxWidth: 520, margin: "0 auto", padding: isApp ? "calc(env(safe-area-inset-top) + 0.7rem) 1rem 0" : "1.4rem 1rem 0" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "10px" }}>
           {!isApp ? (
-            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-              <div style={{ width: 34, height: 34, borderRadius: "10px", background: C.accent, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>
+            <div style={{ display: "flex", alignItems: "center", gap: "11px" }}>
+              <div style={{ width: 36, height: 36, borderRadius: "12px", background: C.accentGrad, boxShadow: C.glow + ", " + C.hi, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>
               </div>
               <div>
-                <div style={{ fontSize: "17px", fontWeight: 800, letterSpacing: "-0.03em", color: C.text }}>Folio</div>
+                <div style={{ fontSize: "18px", fontWeight: 800, letterSpacing: "-0.03em", color: C.text }}>Folio</div>
                 <div style={{ fontSize: "11px", color: C.hint }}>Your personal finance tool</div>
               </div>
             </div>
@@ -751,10 +766,10 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
           <Card>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
               <div>
-                <div style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: C.hint }}>Net worth</div>
-                <div style={{ fontSize: "30px", fontWeight: 800, letterSpacing: "-0.02em", color: netWorth >= 0 ? C.text : C.down, marginTop: "4px" }}>{fmt(netWorth)}</div>
+                <div style={{ fontSize: "10.5px", fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: C.hint }}>Net worth</div>
+                <div className="tnum" style={{ fontSize: "38px", fontWeight: 800, letterSpacing: "-0.035em", color: netWorth >= 0 ? C.text : C.down, marginTop: "5px", lineHeight: 1.05 }}>{fmt(netWorth)}</div>
               </div>
-              <button onClick={() => setHomeView("networth")} style={{ background: "none", border: "0.5px solid " + C.border, borderRadius: "8px", padding: "6px 12px", color: C.accent, fontSize: "12px", fontWeight: 600, cursor: "pointer" }}>Manage</button>
+              <button onClick={() => setHomeView("networth")} style={{ background: C.accent + "16", border: "0.5px solid " + C.accent + "3a", borderRadius: "10px", padding: "7px 13px", color: C.accent, fontSize: "12px", fontWeight: 700, cursor: "pointer" }}>Manage</button>
             </div>
             <div style={{ marginTop: "10px" }}>
               <NetWorthChart history={nwHistory} period={nwPeriod} current={netWorth} />
@@ -1628,17 +1643,16 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
       </div>
 
       {/* Bottom tab bar */}
-      <div style={{ position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 40, background: C.surface, borderTop: "0.5px solid " + C.border, paddingBottom: "env(safe-area-inset-bottom)" }}>
-        <div style={{ maxWidth: 520, margin: "0 auto", display: "flex", padding: "6px 8px" }}>
+      <div style={{ position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 40, background: C.glass, backdropFilter: "blur(20px) saturate(160%)", WebkitBackdropFilter: "blur(20px) saturate(160%)", borderTop: "0.5px solid " + C.border, boxShadow: "0 -12px 30px -18px rgba(0,0,0,0.6)", paddingBottom: "env(safe-area-inset-bottom)" }}>
+        <div style={{ maxWidth: 520, margin: "0 auto", display: "flex", gap: "4px", padding: "8px 10px" }}>
           {[["home","Home"],["tools","Tools"],["log","Activity"],["more","More"]].map(([id, lbl]) => {
             const active = tab === id;
             return (
               <button key={id} onClick={() => { setTab(id); if (id === "more") setMoreView("menu"); if (id === "tools") setToolView("menu"); if (id === "home") setHomeView("dash"); }} style={{
-                flex: 1, padding: "7px 2px", borderRadius: "12px", border: "none", cursor: "pointer",
-                background: "transparent", color: active ? C.accent : C.sub,
+                flex: 1, padding: "8px 2px", borderRadius: "13px", border: "none", cursor: "pointer",
+                background: active ? C.accent + "1f" : "transparent", color: active ? C.accent : C.sub,
                 fontWeight: active ? 700 : 500, fontSize: "10px",
                 display: "flex", flexDirection: "column", alignItems: "center", gap: "4px",
-                transition: "color 0.15s",
               }}>
                 {ICONS[id]}
                 {lbl}

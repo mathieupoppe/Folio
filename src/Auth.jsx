@@ -51,17 +51,17 @@ export default function Auth() {
   const input = { width: "100%", padding: "12px 14px", borderRadius: "11px", border: "0.5px solid " + C.border, background: C.surface, fontSize: "14px", outline: "none", color: C.text, marginBottom: "10px" };
 
   return (
-    <div style={{ minHeight: "100vh", background: C.bg, fontFamily: "'Inter','Segoe UI',system-ui,sans-serif", color: C.text, display: "flex", alignItems: "center", justifyContent: "center", padding: "1.2rem" }}>
-      <style>{`::placeholder{ color:${C.hint}; } input{ color:${C.text}; }`}</style>
+    <div style={{ minHeight: "100vh", background: C.bg, backgroundImage: C.bgGlow, backgroundAttachment: "fixed", fontFamily: "'Inter','Segoe UI',system-ui,sans-serif", color: C.text, display: "flex", alignItems: "center", justifyContent: "center", padding: "1.2rem" }}>
+      <style>{`::placeholder{ color:${C.hint}; } input{ color:${C.text}; } body{ -webkit-font-smoothing:antialiased; } button{ transition: transform .12s ease, filter .18s ease; } button:active{ transform: translateY(1px) scale(0.995); }`}</style>
       <div style={{ width: "100%", maxWidth: 380 }}>
         <div style={{ display: "flex", alignItems: "center", gap: "11px", justifyContent: "center", marginBottom: "26px" }}>
-          <div style={{ width: 38, height: 38, borderRadius: "11px", background: C.accent, display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>
+          <div style={{ width: 40, height: 40, borderRadius: "13px", background: C.accentGrad, boxShadow: C.glow + ", " + C.hi, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>
           </div>
-          <div style={{ fontSize: "22px", fontWeight: 800, letterSpacing: "-0.03em" }}>Folio</div>
+          <div style={{ fontSize: "23px", fontWeight: 800, letterSpacing: "-0.03em" }}>Folio</div>
         </div>
 
-        <div style={{ background: C.card, borderRadius: "18px", border: "0.5px solid " + C.border, padding: "1.4rem 1.3rem" }}>
+        <div style={{ background: C.cardGrad, borderRadius: "20px", border: "0.5px solid " + C.border, boxShadow: C.shadow + ", " + C.hi, padding: "1.5rem 1.35rem" }}>
           <div style={{ fontSize: "18px", fontWeight: 700, marginBottom: "4px" }}>{mode === "login" ? "Welcome back" : "Create your account"}</div>
           <div style={{ fontSize: "12px", color: C.hint, marginBottom: "18px" }}>{mode === "login" ? "Log in to access your plan on any device." : "Sign up to save your plan to the cloud."}</div>
 
@@ -72,7 +72,7 @@ export default function Auth() {
             {err && <div style={{ fontSize: "12px", color: C.down, marginBottom: "10px" }}>{err}</div>}
             {msg && <div style={{ fontSize: "12px", color: C.up, marginBottom: "10px" }}>{msg}</div>}
 
-            <button type="submit" disabled={busy} style={{ width: "100%", padding: "13px", borderRadius: "12px", border: "none", background: C.accent, color: "#fff", fontWeight: 700, fontSize: "14px", cursor: busy ? "default" : "pointer", opacity: busy ? 0.6 : 1 }}>
+            <button type="submit" disabled={busy} style={{ width: "100%", padding: "14px", borderRadius: "13px", border: "none", background: C.accentGrad, boxShadow: busy ? "none" : C.glow, color: "#fff", fontWeight: 700, fontSize: "14px", cursor: busy ? "default" : "pointer", opacity: busy ? 0.6 : 1 }}>
               {busy ? "Please wait…" : mode === "login" ? "Log in" : "Sign up"}
             </button>
           </form>

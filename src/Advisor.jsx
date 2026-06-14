@@ -31,7 +31,7 @@ function InsightRow({ title, detail, severity }) {
   );
 }
 
-const card = { background: C.card, borderRadius: "16px", border: "0.5px solid " + C.border, padding: "1rem 1.1rem", marginBottom: "10px" };
+const card = { background: C.cardGrad, borderRadius: "18px", border: "0.5px solid " + C.border, boxShadow: C.shadow + ", " + C.hi, padding: "1.05rem 1.15rem", marginBottom: "12px" };
 
 // Sparkle glyph — the coach's signature mark.
 function Sparkle({ size = 18, color = "#fff" }) {
