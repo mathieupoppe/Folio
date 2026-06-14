@@ -500,7 +500,7 @@ function MoneyItemList({ items, setItems, color }) {
   const [name, setName] = useState("");
   const [amt, setAmt]   = useState("");
   const add = () => { const a = parseFloat(amt); const n = name.trim(); if (!n || isNaN(a)) return; setItems([...items, { id: "i" + Date.now(), label: n, amount: a }]); setName(""); setAmt(""); };
-  const remove = id => setItems(items.filter(i => i.id !== id));
+  const remove = (id, label) => { if (window.confirm(`Remove "${label}"?`)) setItems(items.filter(i => i.id !== id)); };
   const inp = { padding: "10px 12px", borderRadius: "10px", border: "0.5px solid " + C.border, background: C.surface, fontSize: "13px", outline: "none", color: C.text };
   return (
     <>
@@ -508,13 +508,13 @@ function MoneyItemList({ items, setItems, color }) {
         <div key={it.id} style={{ display: "flex", alignItems: "center", gap: "10px", padding: "10px 0", borderTop: "0.5px solid " + C.border }}>
           <div style={{ flex: 1, minWidth: 0, fontSize: "13px", color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{it.label}</div>
           <div style={{ fontSize: "13px", fontWeight: 600, color }}>{fmt(it.amount)}</div>
-          <button onClick={() => remove(it.id)} style={{ background: "none", border: "none", color: C.hint, cursor: "pointer", fontSize: "13px", padding: "2px" }}>✕</button>
+          <button onClick={() => remove(it.id, it.label)} aria-label={`Remove ${it.label}`} style={{ background: "none", border: "none", color: C.hint, cursor: "pointer", fontSize: "13px", padding: "2px" }}>✕</button>
         </div>
       ))}
       {items.length === 0 && <div style={{ fontSize: "12px", color: C.hint, padding: "4px 0 8px" }}>Nothing added yet.</div>}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 96px auto", gap: "8px", marginTop: "10px" }}>
-        <input placeholder="Name" value={name} onChange={e => setName(e.target.value)} style={inp} />
-        <input type="number" placeholder="Amount" value={amt} onChange={e => setAmt(e.target.value)} onKeyDown={e => e.key === "Enter" && add()} style={inp} />
+        <input placeholder="Name" value={name} onChange={e => setName(e.target.value)} aria-label="Item name" style={inp} />
+        <input type="number" placeholder="Amount" value={amt} onChange={e => setAmt(e.target.value)} onKeyDown={e => e.key === "Enter" && add()} aria-label="Item amount" style={inp} />
         <button onClick={add} style={{ padding: "0 16px", borderRadius: "10px", border: "none", background: C.accent, color: "#fff", fontWeight: 700, fontSize: "13px", cursor: "pointer" }}>Add</button>
       </div>
     </>
@@ -832,7 +832,15 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
         input[type=range].sl::-webkit-slider-thumb{ -webkit-appearance:none; appearance:none; width:16px; height:16px; border-radius:50%; background:var(--sl); border:2px solid ${C.card}; cursor:pointer; margin-top:-5px; }
         input[type=range].sl::-moz-range-track{ height:6px; border-radius:3px; background:transparent; }
         input[type=range].sl::-moz-range-thumb{ width:14px; height:14px; border-radius:50%; background:var(--sl); border:2px solid ${C.card}; cursor:pointer; }
+        @keyframes folioBar{ 0%{ left:-40%; } 100%{ left:100%; } }
       `}</style>
+
+      {/* Loading bar while pulling the latest data from the cloud */}
+      {sync === "loading" && (
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, height: "3px", background: C.accent + "22", zIndex: 50, overflow: "hidden" }}>
+          <div style={{ position: "absolute", top: 0, height: "100%", width: "40%", background: C.accent, borderRadius: "3px", animation: "folioBar 1s ease-in-out infinite" }} />
+        </div>
+      )}
 
       {/* Header */}
       <div style={{ maxWidth: 520, margin: "0 auto", padding: isApp ? "calc(env(safe-area-inset-top) + 0.7rem) 1rem 0" : "1.4rem 1rem 0" }}>
@@ -868,6 +876,11 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
             <div style={{ marginTop: "10px" }}>
               <NetWorthChart history={nwHistory} period={nwPeriod} current={netWorth} />
             </div>
+            {assets.length === 0 && liabilities.length === 0 && (
+              <button onClick={() => setHomeView("networth")} style={{ width: "100%", marginTop: "10px", padding: "10px", borderRadius: "10px", border: "0.5px dashed " + C.border, background: "transparent", color: C.sub, fontSize: "12px", cursor: "pointer", textAlign: "left" }}>
+                💡 Your net worth is €0 because no accounts are added yet. Tap <span style={{ color: C.accent, fontWeight: 600 }}>Manage</span> to add what you own and owe.
+              </button>
+            )}
             <div style={{ display: "flex", gap: "6px", marginTop: "10px" }}>
               {[["1D","1D"],["1W","1W"],["1M","1M"],["1Y","1Y"],["MAX","Max"]].map(([val, lbl]) => {
                 const on = nwPeriod === val;
@@ -881,6 +894,7 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
             <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
               <span style={{ fontSize: "26px", fontWeight: 700, color: C.hint }}>{curSymbol()}</span>
               <input type="number" value={income} onChange={e => setIncome(Math.max(0, +e.target.value))}
+                aria-label="Monthly income after taxes" min="0"
                 style={{ fontSize: "26px", fontWeight: 700, background: "transparent", border: "none", outline: "none", color: C.text, width: "100%" }} />
             </div>
           </Card>
@@ -1004,6 +1018,7 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
             <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
               <span style={{ fontSize: "26px", fontWeight: 700, color: C.hint }}>{curSymbol()}</span>
               <input type="number" value={income} onChange={e => setIncome(Math.max(0, +e.target.value))}
+                aria-label="Monthly income after taxes" min="0"
                 style={{ fontSize: "26px", fontWeight: 700, background: "transparent", border: "none", outline: "none", color: C.text, width: "100%" }} />
             </div>
           </Card>
@@ -1167,7 +1182,7 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
               <Card key={g.id}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "8px" }}>
                   <div style={{ fontSize: "14px", fontWeight: 700 }}>{g.name}</div>
-                  <button onClick={() => setGoals(goals.filter(x => x.id !== g.id))} style={{ background: "none", border: "none", color: C.hint, cursor: "pointer", fontSize: "13px" }}>✕</button>
+                  <button onClick={() => { if (window.confirm(`Delete goal "${g.name}"?`)) setGoals(goals.filter(x => x.id !== g.id)); }} aria-label={`Delete goal ${g.name}`} style={{ background: "none", border: "none", color: C.hint, cursor: "pointer", fontSize: "13px" }}>✕</button>
                 </div>
                 <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", marginBottom: "6px" }}>
                   <span style={{ color: done ? C.up : C.sub }}>{fmt(g.saved)} of {fmt(g.target)}</span>
@@ -1207,7 +1222,7 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
                   <div style={{ fontSize: "13px", fontWeight: 600 }}>{x.name}</div>
                   <div style={{ fontSize: "11px", color: C.hint }}>{fmt(x.amount)} / {x.cycle === "yearly" ? "year" : "month"}{x.day ? ` · day ${x.day}` : ""}</div>
                 </div>
-                <button onClick={() => setSubs(subs.filter(s => s.id !== x.id))} style={{ background: "none", border: "none", color: C.hint, cursor: "pointer", fontSize: "13px" }}>✕</button>
+                <button onClick={() => { if (window.confirm(`Remove subscription "${x.name}"?`)) setSubs(subs.filter(s => s.id !== x.id)); }} aria-label={`Remove subscription ${x.name}`} style={{ background: "none", border: "none", color: C.hint, cursor: "pointer", fontSize: "13px" }}>✕</button>
               </div>
             ))}
             <SubAdder inputStyle={inputStyle} onAdd={(name, amount, cycle, day) => setSubs([...subs, { id: Date.now(), name, amount, cycle, day }])} />
@@ -1437,15 +1452,15 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
             </div>
             <div style={{ marginBottom: "8px" }}>
               <div style={{ fontSize: "11px", color: C.hint, marginBottom: "4px" }}>Date</div>
-              <input type="date" value={logDate} onChange={e => setLogDate(e.target.value)} style={inputStyle} />
+              <input type="date" value={logDate} onChange={e => setLogDate(e.target.value)} aria-label="Transaction date" style={inputStyle} />
             </div>
             <div style={{ marginBottom: "8px" }}>
               <div style={{ fontSize: "11px", color: C.hint, marginBottom: "4px" }}>Amount ({curSymbol()})</div>
-              <input type="number" placeholder="e.g. 200" value={logAmount} onChange={e => setLogAmount(e.target.value)} style={inputStyle} />
+              <input type="number" placeholder="e.g. 200" value={logAmount} onChange={e => setLogAmount(e.target.value)} aria-label="Transaction amount" min="0" style={inputStyle} />
             </div>
             <div style={{ marginBottom: "14px" }}>
               <div style={{ fontSize: "11px", color: C.hint, marginBottom: "4px" }}>Note <span style={{ color: C.hint }}>(optional)</span></div>
-              <input type="text" placeholder="e.g. Monthly VUAA buy" value={logNote} onChange={e => setLogNote(e.target.value)} style={inputStyle} />
+              <input type="text" placeholder="e.g. Monthly VUAA buy" value={logNote} onChange={e => setLogNote(e.target.value)} aria-label="Transaction note" style={inputStyle} />
             </div>
             <button onClick={addEntry} style={{ width: "100%", padding: "13px", borderRadius: "12px", border: "none", background: C.accent, color: "#fff", fontWeight: 700, fontSize: "14px", cursor: "pointer", letterSpacing: "-0.01em" }}>
               Save transaction

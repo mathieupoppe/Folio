@@ -66,8 +66,8 @@ export default function Auth() {
           <div style={{ fontSize: "12px", color: C.hint, marginBottom: "18px" }}>{mode === "login" ? "Log in to access your plan on any device." : "Sign up to save your plan to the cloud."}</div>
 
           <form onSubmit={submit}>
-            <input type="email" placeholder="you@email.com" value={email} onChange={e => setEmail(e.target.value)} style={input} autoComplete="email" />
-            <input type="password" placeholder="Password" value={pw} onChange={e => setPw(e.target.value)} style={input} autoComplete={mode === "login" ? "current-password" : "new-password"} />
+            <input type="email" placeholder="you@email.com" value={email} onChange={e => setEmail(e.target.value)} style={input} autoComplete="email" aria-label="Email address" />
+            <input type="password" placeholder="Password" value={pw} onChange={e => setPw(e.target.value)} style={input} autoComplete={mode === "login" ? "current-password" : "new-password"} aria-label="Password" />
 
             {err && <div style={{ fontSize: "12px", color: C.down, marginBottom: "10px" }}>{err}</div>}
             {msg && <div style={{ fontSize: "12px", color: C.up, marginBottom: "10px" }}>{msg}</div>}
