@@ -1,6 +1,16 @@
 import { useState, useEffect, useRef } from "react";
 import { C, fmt, fmtK, curSymbol, ACCENTS, CURRENCIES, LANGUAGES } from "./theme";
 import { fetchData, saveData } from "./cloud";
+import {
+  calcGrowth as calcGrowthLib,
+  growthRows as growthRowsLib,
+  sumAmount,
+  subsMonthly as subsMonthlyLib,
+  computeHealth,
+  healthBandLabel,
+  NW_MILESTONES,
+  milestoneProgress,
+} from "./lib/finance";
 
 const SCENARIOS = [
   { label: "Conservative", rate: 7,  desc: "Slow decade" },
@@ -19,16 +29,7 @@ function rangeStyle(value, min, max, color) {
   };
 }
 
-function calcGrowth(principal, monthly, years, rate) {
-  const r = rate / 100 / 12;
-  const rows = [];
-  let bal = principal;
-  for (let y = 1; y <= years; y++) {
-    for (let m = 0; m < 12; m++) bal = bal * (1 + r) + monthly;
-    rows.push({ year: y, balance: Math.max(0, bal) });
-  }
-  return rows;
-}
+// calcGrowth / growthRows / health / milestones live in ./lib/finance (unit-tested).
 
 function SliderRow({ label, hint, value, min, max, step, onChange, display }) {
   const [editing, setEditing] = useState(false);
@@ -686,7 +687,7 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
   };
 
   // monthly subscriptions total (normalize yearly → monthly)
-  const subsMonthly = subs.reduce((s, x) => s + (x.cycle === "yearly" ? (x.amount || 0) / 12 : (x.amount || 0)), 0);
+  const subsMonthly = subsMonthlyLib(subs);
 
   // debt payoff calculator inputs
   const [debtPay, setDebtPay] = useState("");
@@ -748,55 +749,26 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
     ? investBuckets.reduce((s, b) => s + b.pct * (b.ret ?? 0), 0) / invPctTotal
     : 0;
 
-  const growData  = calcGrowth(principal, monthly, years, rate);
+  const growData  = calcGrowthLib(principal, monthly, years, rate);
   const final     = growData[growData.length - 1]?.balance || 0;
   const totalIn   = principal + monthly * 12 * years;
   const gains     = final - totalIn;
-  // milestone rows — either one per year, or one per month
-  const msRows = (() => {
-    const rows = [];
-    const r = rate / 100 / 12;
-    let bal = principal;
-    if (msView === "month") {
-      for (let m = 1; m <= years * 12; m++) {
-        bal = bal * (1 + r) + monthly;
-        rows.push({ key: m, label: `${Math.floor((m - 1) / 12) + 1}y ${((m - 1) % 12) + 1}m`, putIn: principal + monthly * m, balance: Math.max(0, bal) });
-      }
-    } else {
-      for (let y = 1; y <= years; y++) {
-        for (let m = 0; m < 12; m++) bal = bal * (1 + r) + monthly;
-        rows.push({ key: y, label: `Yr ${y}`, putIn: principal + monthly * 12 * y, balance: Math.max(0, bal) });
-      }
-    }
-    return rows;
-  })();
+  // milestone rows — either one per year, or one per month (computed in ./lib/finance)
+  const msRows = growthRowsLib(principal, monthly, years, rate, msView);
 
   const totalDep  = entries.filter(e => e.type === "deposit").reduce((s,e) => s + e.amount, 0);
   const totalWith = entries.filter(e => e.type === "withdrawal").reduce((s,e) => s + e.amount, 0);
 
-  const totalAssets = assets.reduce((s, a) => s + (a.amount || 0), 0);
-  const totalLiab   = liabilities.reduce((s, l) => s + (l.amount || 0), 0);
+  const totalAssets = sumAmount(assets);
+  const totalLiab   = sumAmount(liabilities);
   const netWorth    = totalAssets - totalLiab;
 
-  // financial health score (0-100): four pillars of 25
-  const fhSavings   = Math.max(0, Math.min(25, (100 - spendPct) / 30 * 25));
-  const fhEmergency = spendMoney > 0 ? Math.max(0, Math.min(25, (totalAssets / spendMoney) / 6 * 25)) : 12;
-  const fhDebt      = (totalAssets + totalLiab) > 0 ? Math.max(0, 25 * (1 - totalLiab / (totalAssets + totalLiab))) : 25;
-  const fhDiv       = Math.min(25, investBuckets.filter(b => b.pct >= 10).length * 9);
-  const healthScore = Math.round(fhSavings + fhEmergency + fhDebt + fhDiv);
-  const healthPillars = [
-    { label: "Savings rate",      score: Math.round(fhSavings),   tip: "Invest a bigger share of your income." },
-    { label: "Emergency cushion", score: Math.round(fhEmergency), tip: "Build assets covering ~6 months of spending." },
-    { label: "Low debt",          score: Math.round(fhDebt),      tip: "Lower your liabilities relative to assets." },
-    { label: "Diversification",   score: Math.round(fhDiv),       tip: "Spread investing across a few assets." },
-  ];
-  const healthBand = healthScore >= 80 ? { c: C.up, t: "Excellent" } : healthScore >= 60 ? { c: C.up, t: "Healthy" } : healthScore >= 40 ? { c: C.accent, t: "Okay" } : { c: C.down, t: "Needs work" };
+  // financial health score (0-100): four pillars of 25 — computed in ./lib/finance
+  const { score: healthScore, pillars: healthPillars } = computeHealth({ spendPct, spendMoney, totalAssets, totalLiab, investBuckets });
+  const healthBand = healthScore >= 80 ? { c: C.up, t: "Excellent" } : healthScore >= 60 ? { c: C.up, t: "Healthy" } : healthScore >= 40 ? { c: C.accent, t: healthBandLabel(healthScore) } : { c: C.down, t: healthBandLabel(healthScore) };
 
   // net worth milestones
-  const NW_MILESTONES = [1000, 5000, 10000, 25000, 50000, 100000, 250000, 500000, 1000000];
-  const nextMilestone = NW_MILESTONES.find(m => m > netWorth);
-  const lastMilestone = [...NW_MILESTONES].reverse().find(m => m <= netWorth) || 0;
-  const milestonePct  = nextMilestone ? Math.min(100, Math.max(0, (netWorth - lastMilestone) / (nextMilestone - lastMilestone) * 100)) : 100;
+  const { next: nextMilestone, last: lastMilestone, pct: milestonePct } = milestoneProgress(netWorth, NW_MILESTONES);
 
   // record one net-worth snapshot per day so the Home graph can show growth over time
   useEffect(() => {

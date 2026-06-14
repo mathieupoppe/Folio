@@ -1,0 +1,80 @@
+// Pure finance/health calculations — no React, no theme. Unit-tested in finance.test.js.
+
+// Compound growth, one row per year. `monthly` is added at the end of each month.
+export function calcGrowth(principal, monthly, years, rate) {
+  const r = rate / 100 / 12;
+  const rows = [];
+  let bal = principal;
+  for (let y = 1; y <= years; y++) {
+    for (let m = 0; m < 12; m++) bal = bal * (1 + r) + monthly;
+    rows.push({ year: y, balance: Math.max(0, bal) });
+  }
+  return rows;
+}
+
+// Detailed growth rows for the projection table — by "year" or by "month".
+export function growthRows(principal, monthly, years, rate, view = "year") {
+  const r = rate / 100 / 12;
+  const rows = [];
+  let bal = principal;
+  if (view === "month") {
+    for (let m = 1; m <= years * 12; m++) {
+      bal = bal * (1 + r) + monthly;
+      rows.push({
+        key: m,
+        label: `${Math.floor((m - 1) / 12) + 1}y ${((m - 1) % 12) + 1}m`,
+        putIn: principal + monthly * m,
+        balance: Math.max(0, bal),
+      });
+    }
+  } else {
+    for (let y = 1; y <= years; y++) {
+      for (let m = 0; m < 12; m++) bal = bal * (1 + r) + monthly;
+      rows.push({ key: y, label: `Yr ${y}`, putIn: principal + monthly * 12 * y, balance: Math.max(0, bal) });
+    }
+  }
+  return rows;
+}
+
+export const sumAmount = items => (items || []).reduce((s, x) => s + (x.amount || 0), 0);
+
+// Normalize a list of subscriptions to a monthly total (yearly → /12).
+export const subsMonthly = subs =>
+  (subs || []).reduce((s, x) => s + (x.cycle === "yearly" ? (x.amount || 0) / 12 : (x.amount || 0)), 0);
+
+// Financial-health score (0-100): four pillars worth 25 each. Returns numeric
+// data only; the UI maps scores to colors/labels.
+export function computeHealth({ spendPct, spendMoney, totalAssets, totalLiab, investBuckets }) {
+  const fhSavings = Math.max(0, Math.min(25, ((100 - spendPct) / 30) * 25));
+  const fhEmergency = spendMoney > 0 ? Math.max(0, Math.min(25, (totalAssets / spendMoney / 6) * 25)) : 12;
+  const fhDebt = totalAssets + totalLiab > 0 ? Math.max(0, 25 * (1 - totalLiab / (totalAssets + totalLiab))) : 25;
+  const fhDiv = Math.min(25, (investBuckets || []).filter(b => b.pct >= 10).length * 9);
+  const score = Math.round(fhSavings + fhEmergency + fhDebt + fhDiv);
+  const pillars = [
+    { key: "savings",   label: "Savings rate",      score: Math.round(fhSavings),   tip: "Invest a bigger share of your income." },
+    { key: "emergency", label: "Emergency cushion", score: Math.round(fhEmergency), tip: "Build assets covering ~6 months of spending." },
+    { key: "debt",      label: "Low debt",          score: Math.round(fhDebt),      tip: "Lower your liabilities relative to assets." },
+    { key: "div",       label: "Diversification",   score: Math.round(fhDiv),       tip: "Spread investing across a few assets." },
+  ];
+  return { score, pillars };
+}
+
+export const healthBandLabel = score =>
+  score >= 80 ? "Excellent" : score >= 60 ? "Healthy" : score >= 40 ? "Okay" : "Needs work";
+
+export const NW_MILESTONES = [1000, 5000, 10000, 25000, 50000, 100000, 250000, 500000, 1000000];
+
+// Progress toward the next net-worth milestone.
+export function milestoneProgress(netWorth, milestones = NW_MILESTONES) {
+  const next = milestones.find(m => m > netWorth);
+  const last = [...milestones].reverse().find(m => m <= netWorth) || 0;
+  const pct = next ? Math.min(100, Math.max(0, ((netWorth - last) / (next - last)) * 100)) : 100;
+  return { next, last, pct };
+}
+
+// Clamp a numeric input to a sane range; returns fallback for non-numbers.
+export function clampNumber(value, { min = -Infinity, max = Infinity, fallback = 0 } = {}) {
+  const n = typeof value === "number" ? value : parseFloat(value);
+  if (isNaN(n)) return fallback;
+  return Math.min(max, Math.max(min, n));
+}
