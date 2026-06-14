@@ -8,6 +8,7 @@ import {
   healthBandLabel,
   milestoneProgress,
   clampNumber,
+  dueSubscriptionCharges,
 } from "./finance";
 
 describe("calcGrowth", () => {
@@ -85,6 +86,26 @@ describe("milestoneProgress", () => {
   });
   it("caps at 100% past the top milestone", () => {
     expect(milestoneProgress(2_000_000).pct).toBe(100);
+  });
+});
+
+describe("dueSubscriptionCharges", () => {
+  const today = new Date(2026, 5, 14); // 2026-06-14
+  it("flags a monthly sub whose bill day has passed", () => {
+    const due = dueSubscriptionCharges([{ id: "s1", name: "Netflix", amount: 10, cycle: "monthly", day: 5 }], [], today);
+    expect(due).toHaveLength(1);
+    expect(due[0]).toMatchObject({ subId: "s1", amount: 10, date: "2026-06-05", period: "2026-06" });
+  });
+  it("ignores subs whose bill day is still in the future", () => {
+    expect(dueSubscriptionCharges([{ id: "s1", name: "X", amount: 5, cycle: "monthly", day: 25 }], [], today)).toHaveLength(0);
+  });
+  it("skips charges already logged for the period", () => {
+    const subs = [{ id: "s1", name: "X", amount: 5, cycle: "monthly", day: 1 }];
+    const entries = [{ subId: "s1", period: "2026-06" }];
+    expect(dueSubscriptionCharges(subs, entries, today)).toHaveLength(0);
+  });
+  it("skips yearly subscriptions", () => {
+    expect(dueSubscriptionCharges([{ id: "s1", name: "X", amount: 99, cycle: "yearly", day: 1 }], [], today)).toHaveLength(0);
   });
 });
 

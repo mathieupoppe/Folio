@@ -1,0 +1,14 @@
+{
+  "name": "Folio — Personal Finance",
+  "short_name": "Folio",
+  "description": "Plan, grow, and track your money in one place.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0c0e14",
+  "theme_color": "#0c0e14",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

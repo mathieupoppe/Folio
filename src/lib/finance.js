@@ -72,6 +72,27 @@ export function milestoneProgress(netWorth, milestones = NW_MILESTONES) {
   return { next, last, pct };
 }
 
+// Which monthly subscription charges are due so far this month but not yet
+// logged. Returns [{ subId, name, amount, date, period }]. Yearly subs are
+// skipped (no stored month). `entries` already-logged are matched by subId+period.
+export function dueSubscriptionCharges(subs, entries, today = new Date()) {
+  const y = today.getFullYear();
+  const m = today.getMonth();
+  const dayOfMonth = today.getDate();
+  const period = `${y}-${String(m + 1).padStart(2, "0")}`;
+  const logged = new Set((entries || []).filter(e => e.subId && e.period).map(e => `${e.subId}|${e.period}`));
+  const out = [];
+  for (const s of subs || []) {
+    if (s.cycle === "yearly" || !s.day || !s.amount) continue;
+    const billDay = Math.min(s.day, new Date(y, m + 1, 0).getDate()); // clamp to month length
+    if (billDay > dayOfMonth) continue; // not due yet this month
+    if (logged.has(`${s.id}|${period}`)) continue; // already logged
+    const date = `${period}-${String(billDay).padStart(2, "0")}`;
+    out.push({ subId: s.id, name: s.name, amount: s.amount, date, period });
+  }
+  return out;
+}
+
 // Clamp a numeric input to a sane range; returns fallback for non-numbers.
 export function clampNumber(value, { min = -Infinity, max = Infinity, fallback = 0 } = {}) {
   const n = typeof value === "number" ? value : parseFloat(value);

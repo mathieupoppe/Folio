@@ -10,6 +10,7 @@ import {
   healthBandLabel,
   NW_MILESTONES,
   milestoneProgress,
+  dueSubscriptionCharges,
 } from "./lib/finance";
 
 const SCENARIOS = [
@@ -718,6 +719,16 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
     setLogAmount(""); setLogNote("");
   };
 
+  // recurring subscription charges due this month, not yet logged
+  const dueCharges = dueSubscriptionCharges(subs, entries, new Date());
+  const logDueCharges = () => {
+    const newEntries = dueCharges.map((c, i) => ({
+      id: Date.now() + i, date: c.date, type: "withdrawal", amount: c.amount,
+      note: `${c.name} (subscription)`, subId: c.subId, period: c.period,
+    }));
+    persist([...newEntries, ...entries].sort((a, b) => b.date.localeCompare(a.date)));
+  };
+
   // apply a Split planner template
   const applyTemplate = t => {
     setSpendPct(t.spendPct);
@@ -919,6 +930,44 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
               <div style={{ height: "100%", width: healthScore + "%", background: healthBand.c, borderRadius: "4px", transition: "width 0.2s" }} />
             </div>
           </Card>
+
+          {dueCharges.length > 0 && (
+            <Card style={{ border: "0.5px solid " + C.accent }}>
+              <Label text="Subscriptions due" hint={`${dueCharges.length} recurring charge${dueCharges.length > 1 ? "s" : ""} due this month, not yet logged.`} />
+              {dueCharges.map(c => (
+                <div key={c.subId} style={{ display: "flex", justifyContent: "space-between", fontSize: "13px", padding: "4px 0" }}>
+                  <span style={{ color: C.text }}>{c.name}<span style={{ color: C.hint }}> · {c.date}</span></span>
+                  <span style={{ color: C.down, fontWeight: 600 }}>−{fmt(c.amount)}</span>
+                </div>
+              ))}
+              <button onClick={logDueCharges} style={{ width: "100%", marginTop: "10px", padding: "11px", borderRadius: "10px", border: "none", background: C.accent, color: "#fff", fontWeight: 700, fontSize: "13px", cursor: "pointer" }}>
+                Log {dueCharges.length} charge{dueCharges.length > 1 ? "s" : ""}
+              </button>
+            </Card>
+          )}
+
+          {goals.length > 0 && (
+            <Card>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
+                <div style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: C.hint }}>Goals</div>
+                <button onClick={() => { setTab("tools"); setToolView("goals"); }} style={{ background: "none", border: "none", color: C.accent, fontSize: "12px", fontWeight: 600, cursor: "pointer" }}>Manage →</button>
+              </div>
+              {goals.slice(0, 3).map(g => {
+                const pct = g.target > 0 ? Math.min(100, (g.saved / g.target) * 100) : 0;
+                return (
+                  <div key={g.id} style={{ marginBottom: "10px" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", marginBottom: "4px" }}>
+                      <span style={{ color: C.text, fontWeight: 500 }}>{g.name}</span>
+                      <span style={{ color: C.sub }}>{fmt(g.saved || 0)} / {fmt(g.target)}</span>
+                    </div>
+                    <div style={{ height: "6px", borderRadius: "3px", background: C.border, overflow: "hidden" }}>
+                      <div style={{ height: "100%", width: pct + "%", background: pct >= 100 ? C.up : C.accent, borderRadius: "3px", transition: "width 0.2s" }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </Card>
+          )}
 
           <Card>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>

@@ -21,7 +21,9 @@
       "Bash(npm test *)",
       "Bash(git commit -q -m 'Add tooling, tests, and extract finance logic \\(#8 #9 #10\\) *)",
       "Bash(git commit -q -m 'Robustness: error boundary, sync conflict guard, status UI \\(#1-#6\\) *)",
-      "Bash(git commit -q -m 'UX & accessibility: empty state, confirm-delete, aria labels, loaders \\(#11-#15\\) *)"
+      "Bash(git commit -q -m 'UX & accessibility: empty state, confirm-delete, aria labels, loaders \\(#11-#15\\) *)",
+      "Bash(npm run *)",
+      "Bash(git commit -q -m 'Product: PWA, recurring charges, dashboard goals \\(#16 #17 #18\\) *)"
     ]
   }
 }
