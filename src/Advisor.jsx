@@ -109,7 +109,9 @@ export default function Advisor({ data }) {
               color: status === "loading" ? C.sub : "#fff", fontWeight: 700, fontSize: "14px", cursor: status === "loading" ? "default" : "pointer",
               display: "flex", alignItems: "center", justifyContent: "center", gap: "8px",
             }}>
-              {status === "loading" ? "Analyzing your finances…" : <><Sparkle size={16} color="#fff" /> Get my AI analysis</>}
+              {status === "loading"
+                ? <><span className="fspin" style={{ width: 16, height: 16, borderRadius: "50%", border: "2px solid " + C.border, borderTopColor: C.sub, display: "inline-block" }} /> Analyzing your finances…</>
+                : <><Sparkle size={16} color="#fff" /> Get my AI analysis</>}
             </button>
           </>
         )}

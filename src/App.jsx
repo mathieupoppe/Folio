@@ -6,8 +6,19 @@ import Folio from "./folio.jsx";
 
 function Centered({ children }) {
   return (
-    <div style={{ minHeight: "100vh", background: C.bg, color: C.text, fontFamily: "'Inter','Segoe UI',system-ui,sans-serif", display: "flex", alignItems: "center", justifyContent: "center", padding: "1.5rem", textAlign: "center" }}>
+    <div style={{ minHeight: "100vh", background: C.bg, backgroundImage: C.bgGlow, backgroundAttachment: "fixed", color: C.text, fontFamily: "'Inter','Segoe UI',system-ui,sans-serif", display: "flex", alignItems: "center", justifyContent: "center", padding: "1.5rem", textAlign: "center" }}>
       <div style={{ maxWidth: 420 }}>{children}</div>
+    </div>
+  );
+}
+
+// Clean, lightweight ring spinner (pure CSS, GPU-composited — no JS cost).
+function Spinner() {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "14px" }}>
+      <style>{`@keyframes folioSpin{ to{ transform: rotate(360deg); } }`}</style>
+      <div style={{ width: 34, height: 34, borderRadius: "50%", border: "3px solid " + C.border, borderTopColor: C.accent, animation: "folioSpin .8s linear infinite" }} />
+      <div style={{ color: C.sub, fontSize: "13px" }}>Loading your plan…</div>
     </div>
   );
 }
@@ -44,7 +55,7 @@ export default function App() {
     </Centered>
   );
 
-  if (loading) return <Centered><div style={{ color: C.sub, fontSize: "14px" }}>Loading…</div></Centered>;
+  if (loading) return <Centered><Spinner /></Centered>;
 
   if (!session) return <Auth />;
 

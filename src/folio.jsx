@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, createContext, useContext } from "react";
 import { C, fmt, fmtK, curSymbol, ACCENTS, CURRENCIES, LANGUAGES } from "./theme";
 import { fetchData, saveDataSafe } from "./cloud";
 import {
@@ -13,7 +13,12 @@ import {
   dueSubscriptionCharges,
 } from "./lib/finance";
 import Advisor from "./Advisor";
+import Feedback from "./Feedback";
 import { GrowthChart, LogChart, NetWorthChart, Donut } from "./components/charts";
+
+// When false, the small explanatory "hint" texts under section titles are hidden
+// (a power-user declutter toggle). Default on — best for the average user.
+const HintCtx = createContext(true);
 
 const SCENARIOS = [
   { label: "Conservative", rate: 7,  desc: "Slow decade" },
@@ -35,6 +40,7 @@ function rangeStyle(value, min, max, color) {
 // calcGrowth / growthRows / health / milestones live in ./lib/finance (unit-tested).
 
 function SliderRow({ label, hint, value, min, max, step, onChange, display }) {
+  const showHints = useContext(HintCtx);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft]     = useState("");
   const ref = useRef(null);
@@ -45,7 +51,7 @@ function SliderRow({ label, hint, value, min, max, step, onChange, display }) {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "7px" }}>
         <div>
           <div style={{ fontSize: "13px", fontWeight: 500, color: C.text }}>{label}</div>
-          {hint && <div style={{ fontSize: "11px", color: C.hint, marginTop: "2px" }}>{hint}</div>}
+          {hint && showHints && <div style={{ fontSize: "11px", color: C.hint, marginTop: "2px" }}>{hint}</div>}
         </div>
         {editing
           ? <input ref={ref} type="number" value={draft} onChange={e => setDraft(e.target.value)}
@@ -75,15 +81,16 @@ function EditableMoney({ value, onCommit, color }) {
     : <span onClick={tap} style={{ fontSize: "13px", fontWeight: 600, color: color, cursor: "pointer", borderBottom: "1px dashed " + color, paddingBottom: "1px" }}>{fmt(value)}</span>;
 }
 
-function Card({ children, style }) {
-  return <div style={{ background: C.cardGrad, borderRadius: "18px", border: "0.5px solid " + C.border, boxShadow: C.shadow + ", " + C.hi, padding: "1.05rem 1.15rem", marginBottom: "12px", ...style }}>{children}</div>;
+function Card({ children, style, className }) {
+  return <div className={className} style={{ background: C.cardGrad, borderRadius: "18px", border: "0.5px solid " + C.border, boxShadow: C.shadow + ", " + C.hi, padding: "1.05rem 1.15rem", marginBottom: "12px", ...style }}>{children}</div>;
 }
 
 function Label({ text, hint }) {
+  const showHints = useContext(HintCtx);
   return (
     <div style={{ marginBottom: "12px" }}>
       <div style={{ fontSize: "10.5px", fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: C.hint }}>{text}</div>
-      {hint && <div style={{ fontSize: "11px", color: C.hint, marginTop: "3px", lineHeight: 1.45 }}>{hint}</div>}
+      {hint && showHints && <div style={{ fontSize: "11px", color: C.hint, marginTop: "3px", lineHeight: 1.45 }}>{hint}</div>}
     </div>
   );
 }
@@ -704,7 +711,13 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
 
   const inputStyle = { width: "100%", padding: "10px 12px", borderRadius: "10px", border: "0.5px solid " + C.border, background: C.surface, fontSize: "13px", outline: "none", color: C.text };
 
+  // helper-text visibility (default on) + responsive width for the dashboard
+  const showHints = theme?.showHints !== false;
+  const wide = tab === "home" && homeView === "dash";
+  const shellMax = wide ? 1080 : 600;
+
   return (
+    <HintCtx.Provider value={showHints}>
     <div style={{ minHeight: "100vh", background: C.bg, backgroundImage: C.bgGlow, backgroundAttachment: "fixed", fontFamily: "'Inter','Segoe UI',system-ui,sans-serif", color: C.text }}>
       <style>{`
         * { box-sizing: border-box; }
@@ -730,6 +743,15 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
         @keyframes folioBar{ 0%{ left:-40%; } 100%{ left:100%; } }
         @keyframes folioFade{ from{ opacity:0; transform:translateY(6px); } to{ opacity:1; transform:none; } }
         .ffade{ animation: folioFade .35s ease both; }
+        @keyframes folioSpin{ to{ transform: rotate(360deg); } }
+        .fspin{ animation: folioSpin .8s linear infinite; }
+        /* Dashboard: single column on phones, a real multi-column grid on desktop */
+        .dash{ display:flex; flex-direction:column; }
+        @media (min-width: 900px){
+          .dash{ display:grid; grid-template-columns: 1fr 1fr; gap:14px; align-items:start; }
+          .dash > *{ margin-bottom:0 !important; }
+          .dash .span2{ grid-column: 1 / -1; }
+        }
         @media (prefers-reduced-motion: reduce){ *{ animation:none !important; transition:none !important; } }
       `}</style>
 
@@ -741,7 +763,7 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
       )}
 
       {/* Header */}
-      <div style={{ maxWidth: 520, margin: "0 auto", padding: isApp ? "calc(env(safe-area-inset-top) + 0.7rem) 1rem 0" : "1.4rem 1rem 0" }}>
+      <div style={{ maxWidth: shellMax, margin: "0 auto", padding: isApp ? "calc(env(safe-area-inset-top) + 0.7rem) 1rem 0" : "1.4rem 1rem 0" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "10px" }}>
           {!isApp ? (
             <div style={{ display: "flex", alignItems: "center", gap: "11px" }}>
@@ -759,11 +781,11 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
       </div>
 
       {/* Pages */}
-      <div style={{ maxWidth: 520, margin: "0 auto", padding: "0.8rem 1rem 5rem" }}>
+      <div style={{ maxWidth: shellMax, margin: "0 auto", padding: "0.8rem 1rem 5rem" }}>
 
         {/* ── HOME ── */}
-        {tab === "home" && homeView === "dash" && <>
-          <Card>
+        {tab === "home" && homeView === "dash" && <div className="dash">
+          <Card className="span2">
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
               <div>
                 <div style={{ fontSize: "10.5px", fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: C.hint }}>Net worth</div>
@@ -818,9 +840,9 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
             </div>
           </Card>
 
-          <button onClick={() => { setTab("tools"); setToolView("advisor"); }} style={{
+          <button className="span2" onClick={() => { setTab("tools"); setToolView("advisor"); }} style={{
             width: "100%", textAlign: "left", marginBottom: "10px", padding: "1rem 1.1rem", borderRadius: "16px", border: "none", cursor: "pointer",
-            background: `linear-gradient(135deg, ${C.accent}, ${C.accentD})`, color: "#fff", display: "flex", alignItems: "center", gap: "12px",
+            background: C.accentGrad, boxShadow: C.glow, color: "#fff", display: "flex", alignItems: "center", gap: "12px",
           }}>
             <span style={{ width: 38, height: 38, borderRadius: "11px", flexShrink: 0, background: "rgba(255,255,255,0.18)", display: "flex", alignItems: "center", justifyContent: "center" }}>
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3l1.9 4.8L18.7 9.7l-4.8 1.9L12 16.4l-1.9-4.8L5.3 9.7l4.8-1.9z"/><path d="M19 14l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"/></svg>
@@ -870,7 +892,7 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
             </Card>
           )}
 
-          <Card>
+          <Card className="span2">
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
               <div style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: C.hint }}>Recent activity</div>
               <button onClick={() => setTab("log")} style={{ background: "none", border: "none", color: C.accent, fontSize: "12px", fontWeight: 600, cursor: "pointer" }}>View all →</button>
@@ -887,7 +909,7 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
                   </div>
                 ))}
           </Card>
-        </>}
+        </div>}
 
         {/* ── HOME → NET WORTH EDITOR ── */}
         {tab === "home" && homeView === "networth" && <>
@@ -1473,6 +1495,8 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
             <NavRow label="Data & backup" desc="Export or import your data" onClick={() => setMoreView("data")} />
             <NavRow label="Security" desc="Passcode & Face ID" onClick={() => setMoreView("security")} />
             <NavRow label="Help & support" desc="FAQs & contact" onClick={() => setMoreView("help")} />
+            <NavRow label="Report a bug" desc="Something broken? Let us know" onClick={() => setMoreView("bug")} />
+            <NavRow label="Suggest a feature" desc="Ideas for new tools & features" onClick={() => setMoreView("idea")} />
             <NavRow label="Privacy policy" desc="What we store & your controls" onClick={() => setMoreView("privacy")} />
           </Card>
           {session && <button onClick={() => onSignOut && onSignOut()} style={{ width: "100%", padding: "13px", borderRadius: "12px", border: "0.5px solid " + C.down, background: C.down + "18", color: C.down, fontWeight: 700, fontSize: "14px", cursor: "pointer" }}>Sign out</button>}
@@ -1564,13 +1588,38 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
                 })}
               </div>
               <Label text="Accent color" hint="Used across buttons, highlights and charts." />
-              <div style={{ display: "flex", flexWrap: "wrap", gap: "12px" }}>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "12px", marginBottom: "18px" }}>
                 {ACCENTS.map(a => {
                   const on = (theme?.accent || "blue") === a.key;
                   return <button key={a.key} onClick={() => setTheme && setTheme({ accent: a.key })} style={{ width: 38, height: 38, borderRadius: "50%", cursor: "pointer", background: a.accent, border: on ? "2px solid " + C.text : "2px solid transparent", boxShadow: on ? "0 0 0 2px " + C.bg + " inset" : "none" }} />;
                 })}
               </div>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", paddingTop: "14px", borderTop: "0.5px solid " + C.border }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: "13px", fontWeight: 600, color: C.text }}>Helper texts</div>
+                  <div style={{ fontSize: "11px", color: C.hint, marginTop: "2px", lineHeight: 1.45 }}>The little explanations under each section. Turn off for a cleaner, expert view.</div>
+                </div>
+                <button
+                  role="switch"
+                  aria-checked={showHints}
+                  aria-label="Toggle helper texts"
+                  onClick={() => setTheme && setTheme({ showHints: !showHints })}
+                  style={{ flexShrink: 0, width: 46, height: 28, borderRadius: "999px", border: "none", cursor: "pointer", padding: 0, position: "relative", background: showHints ? C.accent : C.border, transition: "background .2s" }}
+                >
+                  <span style={{ position: "absolute", top: 3, left: showHints ? 21 : 3, width: 22, height: 22, borderRadius: "50%", background: "#fff", boxShadow: "0 1px 3px rgba(0,0,0,0.3)", transition: "left .2s" }} />
+                </button>
+              </div>
             </Card>
+          </>}
+
+          {moreView === "bug" && <>
+            <BackBar title="Report a bug" onBack={() => setMoreView("menu")} />
+            <Feedback kind="bug" userId={userId} />
+          </>}
+
+          {moreView === "idea" && <>
+            <BackBar title="Suggest a feature" onBack={() => setMoreView("menu")} />
+            <Feedback kind="idea" userId={userId} />
           </>}
 
           {moreView === "data" && <>
@@ -1644,7 +1693,7 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
 
       {/* Bottom tab bar */}
       <div style={{ position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 40, background: C.glass, backdropFilter: "blur(20px) saturate(160%)", WebkitBackdropFilter: "blur(20px) saturate(160%)", borderTop: "0.5px solid " + C.border, boxShadow: "0 -12px 30px -18px rgba(0,0,0,0.6)", paddingBottom: "env(safe-area-inset-bottom)" }}>
-        <div style={{ maxWidth: 520, margin: "0 auto", display: "flex", gap: "4px", padding: "8px 10px" }}>
+        <div style={{ maxWidth: shellMax, margin: "0 auto", display: "flex", gap: "4px", padding: "8px 10px" }}>
           {[["home","Home"],["tools","Tools"],["log","Activity"],["more","More"]].map(([id, lbl]) => {
             const active = tab === id;
             return (
@@ -1662,5 +1711,6 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
         </div>
       </div>
     </div>
+    </HintCtx.Provider>
   );
 }
