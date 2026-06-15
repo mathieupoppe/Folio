@@ -41,7 +41,8 @@
       "Bash(git commit -q -m 'Add onboarding tutorial + Your stats screen *)",
       "Bash(git commit -q -m 'Tutorial: spotlight walkthrough that highlights elements + switches tabs *)",
       "Bash(git commit -q -m 'Appearance: more accent colors + custom color-wheel picker *)",
-      "Bash(git commit -q -m 'Appearance: collapse accent picker behind a button, trim presets, add color wheel; tool icons *)"
+      "Bash(git commit -q -m 'Appearance: collapse accent picker behind a button, trim presets, add color wheel; tool icons *)",
+      "Bash(git commit -q -m 'Demote Activity from a tab to a Home sub-page with fast quick-add *)"
     ]
   }
 }

@@ -451,7 +451,7 @@ const TOUR_STEPS = [
   { emoji: "🎛️", title: "Make it yours", body: "Tap Customize to reorder your dashboard cards or hide the ones you don't need.", tab: "home", target: "customize" },
   { emoji: "✨", title: "AI money coach", body: "Get an instant read on your finances — plus a deeper AI analysis with one tap.", tab: "home", target: "coach" },
   { emoji: "🧰", title: "Tools", body: "A split planner, growth & FIRE simulators, debt payoff and more — each explains itself as you go.", tab: "tools", target: "toolgrid" },
-  { emoji: "🧾", title: "Activity", body: "Log deposits and withdrawals here to watch your balance build over time.", tab: "log", target: "addtxn" },
+  { emoji: "🧾", title: "Activity", body: "Log deposits and withdrawals from here to watch your balance build over time — tap “+ Add” any time.", tab: "home", target: "recent" },
   { emoji: "⚙️", title: "Everything else", body: "Themes, currency, your stats, and this tour all live under More. You're all set!", tab: "more", target: "nav-more" },
 ];
 function Tutorial({ onClose, onNavigate }) {
@@ -681,6 +681,7 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
   const [dashHidden, setDashHidden] = useState(s0.dashHidden ?? []);
   const [dashEdit,   setDashEdit]   = useState(false);
   const [accentOpen, setAccentOpen] = useState(false); // appearance: accent picker expanded
+  const [logAddOpen, setLogAddOpen] = useState(false); // activity sub-page: add-transaction form open
 
   // subscription tracking: when on, due charges surface on the dashboard + calendar
   const [subTracking, setSubTracking] = useState(s0.subTracking !== false);
@@ -1078,12 +1079,15 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
             ) : null,
             activity: (
               <Card>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px", gap: "8px" }}>
                   <div style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: C.hint }}>Recent activity</div>
-                  <button onClick={() => setTab("log")} style={{ background: "none", border: "none", color: C.accent, fontSize: "12px", fontWeight: 600, cursor: "pointer" }}>View all →</button>
+                  <div style={{ display: "flex", gap: "6px", flexShrink: 0 }}>
+                    <button onClick={() => { setHomeView("activity"); setLogAddOpen(true); }} style={{ background: C.accent + "16", border: "0.5px solid " + C.accent + "3a", borderRadius: "9px", padding: "5px 11px", color: C.accent, fontSize: "12px", fontWeight: 700, cursor: "pointer" }}>+ Add</button>
+                    <button onClick={() => { setHomeView("activity"); setLogAddOpen(false); }} style={{ background: "none", border: "none", color: C.accent, fontSize: "12px", fontWeight: 600, cursor: "pointer" }}>View all →</button>
+                  </div>
                 </div>
                 {entries.length === 0
-                  ? <div style={{ fontSize: "12px", color: C.hint, padding: "6px 0" }}>No transactions yet — add your first in the Log tab.</div>
+                  ? <button onClick={() => { setHomeView("activity"); setLogAddOpen(true); }} style={{ width: "100%", textAlign: "left", padding: "6px 0", background: "none", border: "none", cursor: "pointer", fontSize: "12px", color: C.hint }}>No transactions yet — tap to add your first.</button>
                   : entries.slice(0, 3).map(e => (
                       <div key={e.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderTop: "0.5px solid " + C.border }}>
                         <div>
@@ -1138,7 +1142,7 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
                   const hidden = dashHidden.includes(id);
                   if (hidden && !dashEdit) return null;
                   return (
-                    <div key={id} data-tour={id === "netWorth" ? "networth" : id === "coach" ? "coach" : undefined} className={SPAN[id] ? "span2" : ""} style={{ opacity: hidden ? 0.45 : 1 }}>
+                    <div key={id} data-tour={id === "netWorth" ? "networth" : id === "coach" ? "coach" : id === "activity" ? "recent" : undefined} className={SPAN[id] ? "span2" : ""} style={{ opacity: hidden ? 0.45 : 1 }}>
                       {dashEdit && (
                         <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "8px" }}>
                           <span style={{ flex: 1, fontSize: "11px", fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: C.hint, minWidth: 0 }}>{META[id]}</span>
@@ -1677,7 +1681,8 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
         })()}
 
         {/* ── LOG ── */}
-        {tab === "log" && <>
+        {tab === "home" && homeView === "activity" && <>
+          <BackBar title="Activity" onBack={() => setHomeView("dash")} />
           {entries.length >= 2 ? (
             <Card>
               <Label text="Balance over time" hint="Your net invested, building up across every transaction." />
@@ -1698,8 +1703,12 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
           </div>
 
           <div data-tour="addtxn">
-          <Reveal cta="Add a transaction" accent>
-            {close => (
+          {!logAddOpen ? (
+            <button onClick={() => setLogAddOpen(true)} style={{ width: "100%", padding: "13px", borderRadius: "12px", cursor: "pointer", fontWeight: 700, fontSize: "14px", border: "0.5px dashed " + C.accent, background: C.accent + "14", color: C.accent, display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}>
+              <span style={{ fontSize: "16px", lineHeight: 1 }}>+</span> Add a transaction
+            </button>
+          ) : (
+            <div className="ffade">
               <Card>
                 <Label text="Add a transaction" hint="Record every time you invest or take money out." />
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: "8px", marginBottom: "12px" }}>
@@ -1724,12 +1733,13 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
                   <div style={{ fontSize: "11px", color: C.hint, marginBottom: "4px" }}>Note <span style={{ color: C.hint }}>(optional)</span></div>
                   <input type="text" placeholder="e.g. Monthly VUAA buy" value={logNote} onChange={e => setLogNote(e.target.value)} aria-label="Transaction note" style={inputStyle} />
                 </div>
-                <button onClick={() => { if (parseFloat(logAmount) > 0) { addEntry(); close(); } }} style={{ width: "100%", padding: "13px", borderRadius: "12px", border: "none", background: C.accent, color: "#fff", fontWeight: 700, fontSize: "14px", cursor: "pointer", letterSpacing: "-0.01em" }}>
+                <button onClick={() => { if (parseFloat(logAmount) > 0) { addEntry(); setLogAddOpen(false); } }} style={{ width: "100%", padding: "13px", borderRadius: "12px", border: "none", background: C.accent, color: "#fff", fontWeight: 700, fontSize: "14px", cursor: "pointer", letterSpacing: "-0.01em" }}>
                   Save transaction
                 </button>
               </Card>
-            )}
-          </Reveal>
+              <button onClick={() => setLogAddOpen(false)} style={{ width: "100%", marginTop: "8px", padding: "10px", borderRadius: "10px", border: "none", background: "transparent", color: C.hint, fontWeight: 600, fontSize: "13px", cursor: "pointer" }}>Cancel</button>
+            </div>
+          )}
           </div>
 
           {entries.length > 0 ? (
@@ -2039,7 +2049,7 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
       {/* Bottom tab bar */}
       <div style={{ position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 40, background: C.glass, backdropFilter: "blur(20px) saturate(160%)", WebkitBackdropFilter: "blur(20px) saturate(160%)", borderTop: "0.5px solid " + C.border, boxShadow: "0 -12px 30px -18px rgba(0,0,0,0.6)", paddingBottom: "env(safe-area-inset-bottom)" }}>
         <div style={{ maxWidth: 440, margin: "0 auto", display: "flex", gap: "4px", padding: "8px 10px" }}>
-          {[["home","Home"],["tools","Tools"],["log","Activity"],["more","More"]].map(([id, lbl]) => {
+          {[["home","Home"],["tools","Tools"],["more","More"]].map(([id, lbl]) => {
             const active = tab === id;
             return (
               <button key={id} data-tour={"nav-" + id} onClick={() => { setTab(id); if (id === "more") setMoreView("menu"); if (id === "tools") setToolView("menu"); if (id === "home") setHomeView("dash"); }} style={{
