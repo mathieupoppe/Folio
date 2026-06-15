@@ -40,7 +40,8 @@
       "Bash(git commit -q -m 'Fix desktop layout: chart scaling, consistent width, no page shift *)",
       "Bash(git commit -q -m 'Add onboarding tutorial + Your stats screen *)",
       "Bash(git commit -q -m 'Tutorial: spotlight walkthrough that highlights elements + switches tabs *)",
-      "Bash(git commit -q -m 'Appearance: more accent colors + custom color-wheel picker *)"
+      "Bash(git commit -q -m 'Appearance: more accent colors + custom color-wheel picker *)",
+      "Bash(git commit -q -m 'Appearance: collapse accent picker behind a button, trim presets, add color wheel; tool icons *)"
     ]
   }
 }

@@ -528,6 +528,24 @@ function Tutorial({ onClose, onNavigate }) {
   );
 }
 
+// Clean feather-style line icons for each tool tile (inherit currentColor).
+const TOOL_ICONS = {
+  advisor:   <><path d="M12 3l1.9 4.8L18.7 9.7l-4.8 1.9L12 16.4l-1.9-4.8L5.3 9.7l4.8-1.9z"/><path d="M19 14l.6 1.7 1.7.6-1.7.6-.6 1.7-.6-1.7-1.7-.6 1.7-.6z"/></>,
+  split:     <><path d="M12 2a10 10 0 1 0 10 10"/><path d="M12 2v10h10"/></>,
+  grow:      <><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></>,
+  health:    <><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8z"/></>,
+  goals:     <><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></>,
+  savings:   <><line x1="19" y1="5" x2="5" y2="19"/><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/></>,
+  calendar:  <><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></>,
+  subs:      <><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></>,
+  debt:      <><polyline points="22 17 13.5 8.5 8.5 13.5 2 7"/><polyline points="16 17 22 17 22 11"/></>,
+  fire:      <><path d="M12 2C9 6 7.5 8 7.5 11.5A4.5 4.5 0 0 0 12 16a4.5 4.5 0 0 0 4.5-4.5C16.5 8 15 6 12 2z"/><path d="M12 22a6 6 0 0 1-6-6"/></>,
+  emergency: <><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></>,
+};
+function ToolIcon({ name }) {
+  return <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">{TOOL_ICONS[name] || TOOL_ICONS.advisor}</svg>;
+}
+
 const ICONS = {
   split: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="12" y1="3" x2="12" y2="12"/></svg>,
   grow:  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>,
@@ -662,6 +680,7 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
   const [dashOrder,  setDashOrder]  = useState(s0.dashOrder  ?? DEFAULT_DASH);
   const [dashHidden, setDashHidden] = useState(s0.dashHidden ?? []);
   const [dashEdit,   setDashEdit]   = useState(false);
+  const [accentOpen, setAccentOpen] = useState(false); // appearance: accent picker expanded
 
   // subscription tracking: when on, due charges surface on the dashboard + calendar
   const [subTracking, setSubTracking] = useState(s0.subTracking !== false);
@@ -1196,9 +1215,12 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
               <button key={id} onClick={() => setToolView(id)} style={{
                 textAlign: "left", cursor: "pointer", background: C.cardGrad, border: "0.5px solid " + C.border,
                 boxShadow: C.shadow + ", " + C.hi, borderRadius: "16px", padding: "14px 16px", marginBottom: "10px",
-                display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px",
+                display: "flex", alignItems: "center", gap: "12px",
               }}>
-                <span style={{ minWidth: 0 }}>
+                <span style={{ width: 38, height: 38, borderRadius: "11px", flexShrink: 0, background: C.accent + "1c", color: C.accent, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <ToolIcon name={id} />
+                </span>
+                <span style={{ flex: 1, minWidth: 0 }}>
                   <span style={{ display: "block", fontSize: "14px", fontWeight: 700, color: C.text }}>{label}</span>
                   {showHints && <span style={{ display: "block", fontSize: "12px", color: C.hint, marginTop: "2px" }}>{desc}</span>}
                 </span>
@@ -1853,24 +1875,37 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
                   );
                 })}
               </div>
-              <Label text="Accent color" hint="Pick a preset, or tap the wheel for any color you like." />
-              <div style={{ display: "flex", flexWrap: "wrap", gap: "12px", marginBottom: "18px" }}>
-                {ACCENTS.map(a => {
-                  const on = (theme?.accent || "blue") === a.key;
-                  return <button key={a.key} aria-label={a.key} onClick={() => setTheme && setTheme({ accent: a.key })} style={{ width: 38, height: 38, borderRadius: "50%", cursor: "pointer", background: a.accent, border: on ? "2px solid " + C.text : "2px solid transparent", boxShadow: on ? "0 0 0 2px " + C.bg + " inset" : "none" }} />;
-                })}
-                {(() => {
-                  const on = theme?.accent === "custom";
-                  return (
-                    <label title="Custom color" style={{ position: "relative", width: 38, height: 38, borderRadius: "50%", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
-                      background: "conic-gradient(from 90deg, #f0565b, #f0a23c, #f5b63d, #93d13a, #3dd68c, #2fbed6, #38bdf8, #5b7fff, #a06bff, #e35bf0, #f0609a, #f0565b)",
-                      border: on ? "2px solid " + C.text : "2px solid transparent", boxShadow: on ? "0 0 0 2px " + C.bg + " inset" : "none" }}>
-                      <input type="color" value={theme?.customAccent || C.accent} onChange={e => setTheme && setTheme({ accent: "custom", customAccent: e.target.value })}
-                        aria-label="Custom accent color" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0, cursor: "pointer", border: "none", padding: 0 }} />
-                      {on && <span style={{ width: 16, height: 16, borderRadius: "50%", background: theme?.customAccent || C.accent, border: "2px solid #fff", boxShadow: "0 1px 3px rgba(0,0,0,0.4)" }} />}
-                    </label>
-                  );
-                })()}
+              <div style={{ marginBottom: "16px" }}>
+                <button onClick={() => setAccentOpen(o => !o)} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", padding: "12px 14px", borderRadius: "12px", border: "0.5px solid " + C.border, background: C.surface, cursor: "pointer", textAlign: "left" }}>
+                  <span style={{ display: "flex", alignItems: "center", gap: "11px", minWidth: 0 }}>
+                    <span style={{ width: 22, height: 22, borderRadius: "50%", flexShrink: 0, background: C.accentGrad, boxShadow: C.glow }} />
+                    <span>
+                      <span style={{ display: "block", fontSize: "13px", fontWeight: 600, color: C.text }}>Accent color</span>
+                      {showHints && <span style={{ display: "block", fontSize: "11px", color: C.hint, marginTop: "1px" }}>{theme?.accent === "custom" ? "Custom" : (theme?.accent || "blue").replace(/^\w/, c => c.toUpperCase())} · tap to change</span>}
+                    </span>
+                  </span>
+                  <span style={{ color: C.hint, fontSize: "15px", transform: accentOpen ? "rotate(90deg)" : "none", transition: "transform .2s" }}>›</span>
+                </button>
+                {accentOpen && (
+                  <div className="ffade" style={{ display: "flex", flexWrap: "wrap", gap: "12px", padding: "14px 2px 2px" }}>
+                    {ACCENTS.map(a => {
+                      const on = (theme?.accent || "blue") === a.key;
+                      return <button key={a.key} aria-label={a.key} onClick={() => setTheme && setTheme({ accent: a.key })} style={{ width: 38, height: 38, borderRadius: "50%", cursor: "pointer", background: a.accent, border: on ? "2px solid " + C.text : "2px solid transparent", boxShadow: on ? "0 0 0 2px " + C.bg + " inset" : "none" }} />;
+                    })}
+                    {(() => {
+                      const on = theme?.accent === "custom";
+                      return (
+                        <label title="Custom color" style={{ position: "relative", width: 38, height: 38, borderRadius: "50%", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+                          background: "conic-gradient(from 90deg, #f0565b, #f0a23c, #f5b63d, #93d13a, #3dd68c, #2fbed6, #38bdf8, #5b7fff, #a06bff, #e35bf0, #f0609a, #f0565b)",
+                          border: on ? "2px solid " + C.text : "2px solid transparent", boxShadow: on ? "0 0 0 2px " + C.bg + " inset" : "none" }}>
+                          <input type="color" value={theme?.customAccent || C.accent} onChange={e => setTheme && setTheme({ accent: "custom", customAccent: e.target.value })}
+                            aria-label="Custom accent color" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0, cursor: "pointer", border: "none", padding: 0 }} />
+                          {on && <span style={{ width: 16, height: 16, borderRadius: "50%", background: theme?.customAccent || C.accent, border: "2px solid #fff", boxShadow: "0 1px 3px rgba(0,0,0,0.4)" }} />}
+                        </label>
+                      );
+                    })()}
+                  </div>
+                )}
               </div>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", paddingTop: "14px", borderTop: "0.5px solid " + C.border }}>
                 <div style={{ minWidth: 0 }}>

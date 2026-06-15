@@ -19,24 +19,15 @@ const LIGHT = {
   glass: "rgba(255,255,255,0.72)",
 };
 
-// selectable accent colors — ordered around the hue wheel
+// A few quick presets — the color wheel covers everything else.
 export const ACCENTS = [
-  { key: "red",     accent: "#f0565b", accentD: "#d23a40" },
-  { key: "orange",  accent: "#f0a23c", accentD: "#d4831c" },
-  { key: "amber",   accent: "#f5b63d", accentD: "#d9971b" },
-  { key: "lime",    accent: "#93d13a", accentD: "#6fae1f" },
-  { key: "green",   accent: "#3dd68c", accentD: "#22b070" },
-  { key: "emerald", accent: "#20c997", accentD: "#12a87a" },
-  { key: "teal",    accent: "#2fbed6", accentD: "#1d97ab" },
-  { key: "cyan",    accent: "#25c2e6", accentD: "#129fc0" },
-  { key: "sky",     accent: "#38bdf8", accentD: "#1f9fe0" },
-  { key: "blue",    accent: "#5b7fff", accentD: "#3a5ce8" },
-  { key: "indigo",  accent: "#6366f1", accentD: "#4549d6" },
-  { key: "violet",  accent: "#a06bff", accentD: "#7d44e0" },
-  { key: "fuchsia", accent: "#e35bf0", accentD: "#c33ad9" },
-  { key: "pink",    accent: "#f0609a", accentD: "#d43d7a" },
-  { key: "rose",    accent: "#fb7185", accentD: "#ef4f6b" },
-  { key: "slate",   accent: "#8892b0", accentD: "#6b7593" },
+  { key: "red",    accent: "#f0565b", accentD: "#d23a40" },
+  { key: "orange", accent: "#f0a23c", accentD: "#d4831c" },
+  { key: "green",  accent: "#3dd68c", accentD: "#22b070" },
+  { key: "teal",   accent: "#2fbed6", accentD: "#1d97ab" },
+  { key: "blue",   accent: "#5b7fff", accentD: "#3a5ce8" },
+  { key: "violet", accent: "#a06bff", accentD: "#7d44e0" },
+  { key: "pink",   accent: "#f0609a", accentD: "#d43d7a" },
 ];
 
 // darken a #rrggbb (or #rgb) hex by a fraction — used to derive the gradient
