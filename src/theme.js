@@ -19,15 +19,35 @@ const LIGHT = {
   glass: "rgba(255,255,255,0.72)",
 };
 
-// selectable accent colors
+// selectable accent colors — ordered around the hue wheel
 export const ACCENTS = [
-  { key: "blue",   accent: "#5b7fff", accentD: "#3a5ce8" },
-  { key: "violet", accent: "#a06bff", accentD: "#7d44e0" },
-  { key: "green",  accent: "#3dd68c", accentD: "#22b070" },
-  { key: "teal",   accent: "#2fbed6", accentD: "#1d97ab" },
-  { key: "orange", accent: "#f0a23c", accentD: "#d4831c" },
-  { key: "pink",   accent: "#f0609a", accentD: "#d43d7a" },
+  { key: "red",     accent: "#f0565b", accentD: "#d23a40" },
+  { key: "orange",  accent: "#f0a23c", accentD: "#d4831c" },
+  { key: "amber",   accent: "#f5b63d", accentD: "#d9971b" },
+  { key: "lime",    accent: "#93d13a", accentD: "#6fae1f" },
+  { key: "green",   accent: "#3dd68c", accentD: "#22b070" },
+  { key: "emerald", accent: "#20c997", accentD: "#12a87a" },
+  { key: "teal",    accent: "#2fbed6", accentD: "#1d97ab" },
+  { key: "cyan",    accent: "#25c2e6", accentD: "#129fc0" },
+  { key: "sky",     accent: "#38bdf8", accentD: "#1f9fe0" },
+  { key: "blue",    accent: "#5b7fff", accentD: "#3a5ce8" },
+  { key: "indigo",  accent: "#6366f1", accentD: "#4549d6" },
+  { key: "violet",  accent: "#a06bff", accentD: "#7d44e0" },
+  { key: "fuchsia", accent: "#e35bf0", accentD: "#c33ad9" },
+  { key: "pink",    accent: "#f0609a", accentD: "#d43d7a" },
+  { key: "rose",    accent: "#fb7185", accentD: "#ef4f6b" },
+  { key: "slate",   accent: "#8892b0", accentD: "#6b7593" },
 ];
+
+// darken a #rrggbb (or #rgb) hex by a fraction — used to derive the gradient
+// end-color for a custom accent the user picks.
+export function darken(hex, amt = 0.2) {
+  let h = String(hex || "").replace("#", "");
+  if (h.length === 3) h = h.split("").map(c => c + c).join("");
+  if (h.length !== 6) return hex;
+  const ch = i => Math.max(0, Math.min(255, Math.round(parseInt(h.slice(i, i + 2), 16) * (1 - amt))));
+  return "#" + [0, 2, 4].map(i => ch(i).toString(16).padStart(2, "0")).join("");
+}
 
 // selectable currencies — the most-traded / most-used worldwide
 export const CURRENCIES = [
@@ -75,11 +95,15 @@ export const DEFAULT_THEME = { mode: "dark", accent: "blue", currency: "EUR", la
 
 let CUR = CURRENCIES[0]; // active currency
 
-export function applyTheme(mode, accentKey) {
+export function applyTheme(mode, accentKey, customHex) {
   const isLight = mode === "light";
   Object.assign(C, isLight ? LIGHT : DARK);
-  const a = ACCENTS.find(x => x.key === accentKey) || ACCENTS[0];
-  C.accent = a.accent; C.accentD = a.accentD;
+  if (accentKey === "custom" && customHex) {
+    C.accent = customHex; C.accentD = darken(customHex, 0.22);
+  } else {
+    const a = ACCENTS.find(x => x.key === accentKey) || ACCENTS.find(x => x.key === "blue");
+    C.accent = a.accent; C.accentD = a.accentD;
+  }
   // derived premium tokens (depend on the freshly-assigned mode + accent)
   C.cardGrad = `linear-gradient(180deg, ${C.cardTop}, ${C.card})`;
   C.accentGrad = `linear-gradient(135deg, ${C.accent}, ${C.accentD})`;
@@ -111,7 +135,7 @@ export function loadTheme() {
 // apply immediately at module load so the first render is correct
 {
   const t = loadTheme();
-  applyTheme(t.mode, t.accent);
+  applyTheme(t.mode, t.accent, t.customAccent);
   applyCurrency(t.currency);
 }
 

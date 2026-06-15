@@ -1853,12 +1853,24 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
                   );
                 })}
               </div>
-              <Label text="Accent color" hint="Used across buttons, highlights and charts." />
+              <Label text="Accent color" hint="Pick a preset, or tap the wheel for any color you like." />
               <div style={{ display: "flex", flexWrap: "wrap", gap: "12px", marginBottom: "18px" }}>
                 {ACCENTS.map(a => {
                   const on = (theme?.accent || "blue") === a.key;
-                  return <button key={a.key} onClick={() => setTheme && setTheme({ accent: a.key })} style={{ width: 38, height: 38, borderRadius: "50%", cursor: "pointer", background: a.accent, border: on ? "2px solid " + C.text : "2px solid transparent", boxShadow: on ? "0 0 0 2px " + C.bg + " inset" : "none" }} />;
+                  return <button key={a.key} aria-label={a.key} onClick={() => setTheme && setTheme({ accent: a.key })} style={{ width: 38, height: 38, borderRadius: "50%", cursor: "pointer", background: a.accent, border: on ? "2px solid " + C.text : "2px solid transparent", boxShadow: on ? "0 0 0 2px " + C.bg + " inset" : "none" }} />;
                 })}
+                {(() => {
+                  const on = theme?.accent === "custom";
+                  return (
+                    <label title="Custom color" style={{ position: "relative", width: 38, height: 38, borderRadius: "50%", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+                      background: "conic-gradient(from 90deg, #f0565b, #f0a23c, #f5b63d, #93d13a, #3dd68c, #2fbed6, #38bdf8, #5b7fff, #a06bff, #e35bf0, #f0609a, #f0565b)",
+                      border: on ? "2px solid " + C.text : "2px solid transparent", boxShadow: on ? "0 0 0 2px " + C.bg + " inset" : "none" }}>
+                      <input type="color" value={theme?.customAccent || C.accent} onChange={e => setTheme && setTheme({ accent: "custom", customAccent: e.target.value })}
+                        aria-label="Custom accent color" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0, cursor: "pointer", border: "none", padding: 0 }} />
+                      {on && <span style={{ width: 16, height: 16, borderRadius: "50%", background: theme?.customAccent || C.accent, border: "2px solid #fff", boxShadow: "0 1px 3px rgba(0,0,0,0.4)" }} />}
+                    </label>
+                  );
+                })()}
               </div>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", paddingTop: "14px", borderTop: "0.5px solid " + C.border }}>
                 <div style={{ minWidth: 0 }}>

@@ -31,7 +31,7 @@ export default function App() {
   const [theme, setThemeState] = useState(loadTheme);
   const setTheme = next => {
     const merged = { ...theme, ...next };
-    applyTheme(merged.mode, merged.accent);
+    applyTheme(merged.mode, merged.accent, merged.customAccent);
     applyCurrency(merged.currency);
     try { localStorage.setItem("folio-theme", JSON.stringify(merged)); } catch {}
     setThemeState(merged);
