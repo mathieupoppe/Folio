@@ -416,6 +416,32 @@ function BackBar({ title, onBack }) {
   );
 }
 
+// Collapses an add/edit form behind a single button so screens feel tidy and
+// "locked in". `children` can be a render-prop: (close) => JSX, so the form can
+// auto-collapse after saving. `cta` is the closed-state button label.
+function Reveal({ cta, children, accent }) {
+  const [open, setOpen] = useState(false);
+  if (!open) {
+    return (
+      <button onClick={() => setOpen(true)} style={{
+        width: "100%", padding: "13px", borderRadius: "12px", cursor: "pointer", fontWeight: 700, fontSize: "14px",
+        border: "0.5px dashed " + (accent ? C.accent : C.border),
+        background: accent ? C.accent + "14" : C.surface, color: accent ? C.accent : C.text,
+        display: "flex", alignItems: "center", justifyContent: "center", gap: "8px",
+      }}>
+        <span style={{ fontSize: "16px", lineHeight: 1 }}>+</span> {cta}
+      </button>
+    );
+  }
+  const close = () => setOpen(false);
+  return (
+    <div className="ffade">
+      {typeof children === "function" ? children(close) : children}
+      <button onClick={close} style={{ width: "100%", marginTop: "8px", padding: "10px", borderRadius: "10px", border: "none", background: "transparent", color: C.hint, fontWeight: 600, fontSize: "13px", cursor: "pointer" }}>Cancel</button>
+    </div>
+  );
+}
+
 const ICONS = {
   split: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="12" y1="3" x2="12" y2="12"/></svg>,
   grow:  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>,
@@ -513,6 +539,9 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
   const [dashHidden, setDashHidden] = useState(s0.dashHidden ?? []);
   const [dashEdit,   setDashEdit]   = useState(false);
 
+  // subscription tracking: when on, due charges surface on the dashboard + calendar
+  const [subTracking, setSubTracking] = useState(s0.subTracking !== false);
+
   // milestones view: "year" | "month"
   const [msView, setMsView] = useState("year");
 
@@ -542,6 +571,7 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
     if (Array.isArray(st.subs))        setSubs(st.subs);
     if (Array.isArray(st.dashOrder))   setDashOrder(st.dashOrder);
     if (Array.isArray(st.dashHidden))  setDashHidden(st.dashHidden);
+    if (typeof st.subTracking === "boolean") setSubTracking(st.subTracking);
     if (st.profile)  setProfile(st.profile);
     if (Array.isArray(d.entries)) setEntries(d.entries);
   };
@@ -567,7 +597,7 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
 
   // local cache always; debounced, conflict-aware cloud save once hydrated
   useEffect(() => {
-    const blob = { settings: { income, spendPct, investBuckets, spendBuckets, principal, monthly, years, rate, assets, liabilities, nwHistory, goals, subs, profile, dashOrder, dashHidden }, entries };
+    const blob = { settings: { income, spendPct, investBuckets, spendBuckets, principal, monthly, years, rate, assets, liabilities, nwHistory, goals, subs, profile, dashOrder, dashHidden, subTracking }, entries };
     try { localStorage.setItem(LOCAL_KEY, JSON.stringify(blob)); }
     catch (e) { console.warn("Folio: couldn't save to local storage —", e?.message || e); }
     if (!hydrated.current || !userId) return;
@@ -588,7 +618,7 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
       }).catch(() => setSync("error"));
     }, 800);
     return () => clearTimeout(t);
-  }, [income, spendPct, investBuckets, spendBuckets, principal, monthly, years, rate, assets, liabilities, nwHistory, goals, subs, profile, dashOrder, dashHidden, entries, userId, retryNonce]);
+  }, [income, spendPct, investBuckets, spendBuckets, principal, monthly, years, rate, assets, liabilities, nwHistory, goals, subs, profile, dashOrder, dashHidden, subTracking, entries, userId, retryNonce]);
 
   const addEntry = () => {
     const amt = parseFloat(logAmount);
@@ -943,7 +973,7 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
                 <button onClick={() => setDashEdit(e => !e)} style={{ padding: "7px 15px", borderRadius: "10px", border: "0.5px solid " + (dashEdit ? C.accent : C.border), background: dashEdit ? C.accent : C.surface, color: dashEdit ? "#fff" : C.sub, fontSize: "12px", fontWeight: 700, cursor: "pointer" }}>{dashEdit ? "✓ Done" : "✎ Customize"}</button>
               </div>
 
-              {dueCharges.length > 0 && !dashEdit && (
+              {subTracking && dueCharges.length > 0 && !dashEdit && (
                 <Card style={{ border: "0.5px solid " + C.accent }}>
                   <Label text="Subscriptions due" hint={`${dueCharges.length} recurring charge${dueCharges.length > 1 ? "s" : ""} due this month, not yet logged.`} />
                   {dueCharges.map(c => (
@@ -1062,20 +1092,24 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
         {/* ── SPLIT (Tools) ── */}
         {tab === "tools" && toolView === "split" && <>
           <BackBar title="Split planner" onBack={() => setToolView("menu")} />
-          <Card>
-            <Label text="Start from a template" hint="A one-tap starting point — tweak everything after." />
-            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-              {PLAN_TEMPLATES.map(t => (
-                <button key={t.id} onClick={() => { if (window.confirm(`Apply the "${t.name}" template? This replaces your current split.`)) applyTemplate(t); }} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "11px 12px", borderRadius: "10px", border: "0.5px solid " + C.border, background: C.surface, cursor: "pointer", textAlign: "left" }}>
-                  <div>
-                    <div style={{ fontSize: "13px", fontWeight: 600, color: C.text }}>{t.name}</div>
-                    <div style={{ fontSize: "11px", color: C.hint, marginTop: "1px" }}>{t.desc}</div>
-                  </div>
-                  <span style={{ fontSize: "12px", fontWeight: 600, color: C.accent, flexShrink: 0, marginLeft: "10px" }}>Apply</span>
-                </button>
-              ))}
-            </div>
-          </Card>
+          <Reveal cta="Templates">
+            {close => (
+              <Card>
+                <Label text="Start from a template" hint="A one-tap starting point — tweak everything after." />
+                <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                  {PLAN_TEMPLATES.map(t => (
+                    <button key={t.id} onClick={() => { if (window.confirm(`Apply the "${t.name}" template? This replaces your current split.`)) { applyTemplate(t); close(); } }} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "11px 12px", borderRadius: "10px", border: "0.5px solid " + C.border, background: C.surface, cursor: "pointer", textAlign: "left" }}>
+                      <div>
+                        <div style={{ fontSize: "13px", fontWeight: 600, color: C.text }}>{t.name}</div>
+                        {showHints && <div style={{ fontSize: "11px", color: C.hint, marginTop: "1px" }}>{t.desc}</div>}
+                      </div>
+                      <span style={{ fontSize: "12px", fontWeight: 600, color: C.accent, flexShrink: 0, marginLeft: "10px" }}>Apply</span>
+                    </button>
+                  ))}
+                </div>
+              </Card>
+            )}
+          </Reveal>
           <Card>
             <Label text="Monthly income" hint="Your take-home pay after taxes." />
             <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
@@ -1157,31 +1191,23 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
         {tab === "tools" && toolView === "grow" && <>
           <BackBar title="Growth simulator" onBack={() => setToolView("menu")} />
           <Card>
-            <Label text="Return scenario" hint="Pick how you think the market will perform. Historical average is 10%." />
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: "8px" }}>
-              {SCENARIOS.map(s => {
-                const active = Math.abs(rate - s.rate) < 0.05;
-                return (
-                  <button key={s.label} onClick={() => setRate(s.rate)} style={{
-                    padding: "10px 12px", borderRadius: "10px", textAlign: "left", cursor: "pointer",
-                    border: "0.5px solid " + (active ? C.accent : C.border),
-                    background: active ? C.accent + "18" : C.surface,
-                  }}>
-                    <div style={{ fontSize: "15px", fontWeight: 700, color: active ? C.accent : C.text }}>{s.rate}%</div>
-                    <div style={{ fontSize: "11px", color: active ? C.accent : C.sub, marginTop: "1px" }}>{s.label}</div>
-                    <div style={{ fontSize: "10px", color: C.hint, marginTop: "1px" }}>{s.desc}</div>
-                  </button>
-                );
-              })}
-            </div>
-          </Card>
-
-          <Card>
             <Label text="Your numbers" hint="Tap any value to type directly, or drag the slider." />
             <SliderRow label="Starting amount" hint="Money you invest on day one." value={principal} min={0} max={50000} step={100} onChange={setPrincipal} display={fmt(principal)} />
             <SliderRow label="Monthly addition" hint="Extra you add every month." value={monthly} min={0} max={2000} step={50} onChange={setMonthly} display={fmt(monthly)} />
             <SliderRow label="Years" hint="Time is your biggest advantage. The longer the better." value={years} min={1} max={60} step={1} onChange={setYears} display={years + " yrs"} />
-            <SliderRow label="Annual return" hint="Linked to scenario above." value={rate} min={1} max={20} step={0.5} onChange={setRate} display={rate + "%"} />
+            <SliderRow label="Annual return" hint="Drag, or pick a scenario below." value={rate} min={1} max={20} step={0.5} onChange={setRate} display={rate + "%"} />
+            <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginTop: "-4px" }}>
+              {SCENARIOS.map(s => {
+                const active = Math.abs(rate - s.rate) < 0.05;
+                return (
+                  <button key={s.label} onClick={() => setRate(s.rate)} title={s.desc} style={{
+                    padding: "6px 11px", borderRadius: "999px", cursor: "pointer", fontSize: "12px", fontWeight: 600,
+                    border: "0.5px solid " + (active ? C.accent : C.border),
+                    background: active ? C.accent + "1e" : C.surface, color: active ? C.accent : C.sub,
+                  }}>{s.label} · {s.rate}%</button>
+                );
+              })}
+            </div>
           </Card>
 
           <Card>
@@ -1263,15 +1289,30 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
               </Card>
             );
           })}
-          <Card>
-            <Label text="New goal" hint="Name it and set a target amount." />
-            <GoalAdder onAdd={(name, target) => setGoals([...goals, { id: Date.now(), name, target, saved: 0 }])} />
-          </Card>
+          <Reveal cta="Add goal" accent>
+            {close => (
+              <Card>
+                <Label text="New goal" hint="Name it and set a target amount." />
+                <GoalAdder onAdd={(name, target) => { setGoals([...goals, { id: Date.now(), name, target, saved: 0 }]); close(); }} />
+              </Card>
+            )}
+          </Reveal>
         </>}
 
         {/* ── SUBSCRIPTIONS (Tools) ── */}
         {tab === "tools" && toolView === "subs" && <>
           <BackBar title="Subscriptions" onBack={() => setToolView("menu")} />
+          <Card>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px" }}>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: "13px", fontWeight: 700, color: C.text }}>Track on calendar</div>
+                {showHints && <div style={{ fontSize: "11px", color: C.hint, marginTop: "2px" }}>Show due charges on your dashboard & calendar.</div>}
+              </div>
+              <button role="switch" aria-checked={subTracking} onClick={() => setSubTracking(v => !v)} style={{ width: 46, height: 28, borderRadius: "999px", border: "none", cursor: "pointer", flexShrink: 0, background: subTracking ? C.accent : C.border, position: "relative", transition: "background .2s" }}>
+                <span style={{ position: "absolute", top: 3, left: subTracking ? 21 : 3, width: 22, height: 22, borderRadius: "50%", background: "#fff", transition: "left .2s" }} />
+              </button>
+            </div>
+          </Card>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: "8px", marginBottom: "10px" }}>
             <Metric label="Per month" value={fmt(subsMonthly)} desc="All subscriptions" positive={false} />
             <Metric label="Per year"  value={fmtK(subsMonthly * 12)} desc="That's the yearly cost" positive={false} />
@@ -1288,8 +1329,15 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
                 <button onClick={() => { if (window.confirm(`Remove subscription "${x.name}"?`)) setSubs(subs.filter(s => s.id !== x.id)); }} aria-label={`Remove subscription ${x.name}`} style={{ background: "none", border: "none", color: C.hint, cursor: "pointer", fontSize: "13px" }}>✕</button>
               </div>
             ))}
-            <SubAdder inputStyle={inputStyle} onAdd={(name, amount, cycle, day) => setSubs([...subs, { id: Date.now(), name, amount, cycle, day }])} />
           </Card>
+          <Reveal cta="Add subscription" accent>
+            {close => (
+              <Card>
+                <Label text="New subscription" hint="Name, amount, billing cycle and day." />
+                <SubAdder inputStyle={inputStyle} onAdd={(name, amount, cycle, day) => { setSubs([...subs, { id: Date.now(), name, amount, cycle, day }]); close(); }} />
+              </Card>
+            )}
+          </Reveal>
         </>}
 
         {/* ── DEBT PAYOFF (Tools) ── */}
@@ -1501,34 +1549,38 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
             <Metric label="Transactions"     value={entries.length}             desc="Entries logged" />
           </div>
 
-          <Card>
-            <Label text="Add a transaction" hint="Record every time you invest or take money out." />
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: "8px", marginBottom: "12px" }}>
-              {["deposit","withdrawal"].map(t => (
-                <button key={t} onClick={() => setLogType(t)} style={{
-                  padding: "10px", borderRadius: "10px", cursor: "pointer", fontWeight: 600, fontSize: "13px",
-                  border: "0.5px solid " + (logType === t ? (t === "deposit" ? C.up : C.down) : C.border),
-                  background: logType === t ? (t === "deposit" ? C.up + "18" : C.down + "18") : C.surface,
-                  color: logType === t ? (t === "deposit" ? C.up : C.down) : C.sub,
-                }}>{t === "deposit" ? "+ Deposit" : "− Withdrawal"}</button>
-              ))}
-            </div>
-            <div style={{ marginBottom: "8px" }}>
-              <div style={{ fontSize: "11px", color: C.hint, marginBottom: "4px" }}>Date</div>
-              <input type="date" value={logDate} onChange={e => setLogDate(e.target.value)} aria-label="Transaction date" style={inputStyle} />
-            </div>
-            <div style={{ marginBottom: "8px" }}>
-              <div style={{ fontSize: "11px", color: C.hint, marginBottom: "4px" }}>Amount ({curSymbol()})</div>
-              <input type="number" placeholder="e.g. 200" value={logAmount} onChange={e => setLogAmount(e.target.value)} aria-label="Transaction amount" min="0" style={inputStyle} />
-            </div>
-            <div style={{ marginBottom: "14px" }}>
-              <div style={{ fontSize: "11px", color: C.hint, marginBottom: "4px" }}>Note <span style={{ color: C.hint }}>(optional)</span></div>
-              <input type="text" placeholder="e.g. Monthly VUAA buy" value={logNote} onChange={e => setLogNote(e.target.value)} aria-label="Transaction note" style={inputStyle} />
-            </div>
-            <button onClick={addEntry} style={{ width: "100%", padding: "13px", borderRadius: "12px", border: "none", background: C.accent, color: "#fff", fontWeight: 700, fontSize: "14px", cursor: "pointer", letterSpacing: "-0.01em" }}>
-              Save transaction
-            </button>
-          </Card>
+          <Reveal cta="Add a transaction" accent>
+            {close => (
+              <Card>
+                <Label text="Add a transaction" hint="Record every time you invest or take money out." />
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: "8px", marginBottom: "12px" }}>
+                  {["deposit","withdrawal"].map(t => (
+                    <button key={t} onClick={() => setLogType(t)} style={{
+                      padding: "10px", borderRadius: "10px", cursor: "pointer", fontWeight: 600, fontSize: "13px",
+                      border: "0.5px solid " + (logType === t ? (t === "deposit" ? C.up : C.down) : C.border),
+                      background: logType === t ? (t === "deposit" ? C.up + "18" : C.down + "18") : C.surface,
+                      color: logType === t ? (t === "deposit" ? C.up : C.down) : C.sub,
+                    }}>{t === "deposit" ? "+ Deposit" : "− Withdrawal"}</button>
+                  ))}
+                </div>
+                <div style={{ marginBottom: "8px" }}>
+                  <div style={{ fontSize: "11px", color: C.hint, marginBottom: "4px" }}>Date</div>
+                  <input type="date" value={logDate} onChange={e => setLogDate(e.target.value)} aria-label="Transaction date" style={inputStyle} />
+                </div>
+                <div style={{ marginBottom: "8px" }}>
+                  <div style={{ fontSize: "11px", color: C.hint, marginBottom: "4px" }}>Amount ({curSymbol()})</div>
+                  <input type="number" placeholder="e.g. 200" value={logAmount} onChange={e => setLogAmount(e.target.value)} aria-label="Transaction amount" min="0" style={inputStyle} />
+                </div>
+                <div style={{ marginBottom: "14px" }}>
+                  <div style={{ fontSize: "11px", color: C.hint, marginBottom: "4px" }}>Note <span style={{ color: C.hint }}>(optional)</span></div>
+                  <input type="text" placeholder="e.g. Monthly VUAA buy" value={logNote} onChange={e => setLogNote(e.target.value)} aria-label="Transaction note" style={inputStyle} />
+                </div>
+                <button onClick={() => { if (parseFloat(logAmount) > 0) { addEntry(); close(); } }} style={{ width: "100%", padding: "13px", borderRadius: "12px", border: "none", background: C.accent, color: "#fff", fontWeight: 700, fontSize: "14px", cursor: "pointer", letterSpacing: "-0.01em" }}>
+                  Save transaction
+                </button>
+              </Card>
+            )}
+          </Reveal>
 
           {entries.length > 0 ? (
             <Card>
