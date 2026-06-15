@@ -35,7 +35,9 @@
       "Bash(git commit -q -m 'Settings: feedback tabs, helper-text toggle, responsive layout, loading spinner *)",
       "Bash(grep -n 'const s0 =\\\\|useState\\(s0\\\\.\\\\|const blob = {\\\\|if \\(Array.isArray\\(st\\\\.\\\\|}, \\\\[income, spendPct' src/folio.jsx)",
       "Bash(git commit -q -m 'Edit-mode dashboard \\(reorder + hide\\) + responsive on every page *)",
-      "Bash(git commit -q -m 'Lock-in buttons: collapse add-forms behind reveal buttons *)"
+      "Bash(git commit -q -m 'Lock-in buttons: collapse add-forms behind reveal buttons *)",
+      "Bash(perl -0pi -e 's/className=\\\\{shellClass\\\\}/className=\"shell\"/g' src/folio.jsx)",
+      "Bash(git commit -q -m 'Fix desktop layout: chart scaling, consistent width, no page shift *)"
     ]
   }
 }

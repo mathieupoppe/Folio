@@ -20,7 +20,7 @@ export function GrowthChart({ data, principal, monthly }) {
   const ticks = years <= 10 ? data.map((_, i) => i) : [0, Math.floor(years * 0.25), Math.floor(years * 0.5), Math.floor(years * 0.75), years - 1];
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: "block", overflow: "visible" }}>
+    <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: "block", overflow: "visible", maxWidth: "520px", margin: "0 auto" }}>
       <defs>
         <linearGradient id="ag" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor={C.accent} stopOpacity="0.18" />
@@ -63,7 +63,7 @@ export function LogChart({ entries }) {
   const area = line + ` L${px(pts.length - 1).toFixed(1)},${(PT + ih).toFixed(1)} L${px(0).toFixed(1)},${(PT + ih).toFixed(1)} Z`;
   const ticks = [0, Math.floor((pts.length - 1) / 2), pts.length - 1];
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: "block", overflow: "visible" }}>
+    <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: "block", overflow: "visible", maxWidth: "520px", margin: "0 auto" }}>
       <defs>
         <linearGradient id="lg" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor={C.accent} stopOpacity="0.18" />
@@ -102,26 +102,28 @@ export function NetWorthChart({ history, period, current }) {
   const col = pts[pts.length - 1].value >= pts[0].value ? C.up : C.down;
   const lastX = px(pts.length - 1), lastY = py(pts[pts.length - 1].value);
 
-  // Flat data: a single clean baseline with end dot — no big gradient block.
+  // Flat data: a clean dashed baseline + an HTML caption (fixed size, never scales).
   if (flat) {
     const y = (PT + ih / 2).toFixed(1);
     return (
-      <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: "block", overflow: "visible" }}>
-        <line x1={PL} y1={y} x2={W - PR} y2={y} stroke={C.border} strokeWidth="2" strokeLinecap="round" strokeDasharray="2 6" />
-        <circle cx={lastX} cy={y} r="3.5" fill={C.accent} />
-        <text x={W / 2} y={Number(y) + 22} textAnchor="middle" fontSize="10" fill={C.hint}>No change yet — your line grows as your net worth moves.</text>
-      </svg>
+      <div>
+        <svg viewBox={`0 0 ${W} ${H}`} width="100%" preserveAspectRatio="none" style={{ display: "block", height: "120px" }}>
+          <line x1={PL} y1={y} x2={W - PR} y2={y} stroke={C.border} strokeWidth="2" strokeLinecap="round" strokeDasharray="2 6" vectorEffect="non-scaling-stroke" />
+        </svg>
+        <div style={{ fontSize: "11px", color: C.hint, textAlign: "center", marginTop: "6px" }}>No change yet — your line grows as your net worth moves.</div>
+      </div>
     );
   }
 
   const line = pts.map((p, i) => `${i === 0 ? "M" : "L"}${px(i).toFixed(1)},${py(p.value).toFixed(1)}`).join(" ");
   const area = line + ` L${lastX.toFixed(1)},${(PT + ih).toFixed(1)} L${px(0).toFixed(1)},${(PT + ih).toFixed(1)} Z`;
+  // preserveAspectRatio="none" + fixed height keeps the chart a sane size at any
+  // width; non-scaling-stroke keeps the line crisp instead of blowing up.
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{ display: "block", overflow: "visible" }}>
+    <svg viewBox={`0 0 ${W} ${H}`} width="100%" preserveAspectRatio="none" style={{ display: "block", height: "140px" }}>
       <defs><linearGradient id="nwg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={col} stopOpacity="0.2" /><stop offset="100%" stopColor={col} stopOpacity="0" /></linearGradient></defs>
       <path d={area} fill="url(#nwg)" />
-      <path d={line} fill="none" stroke={col} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-      <circle cx={lastX.toFixed(1)} cy={lastY.toFixed(1)} r="3.5" fill={col} />
+      <path d={line} fill="none" stroke={col} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
     </svg>
   );
 }

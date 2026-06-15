@@ -753,9 +753,6 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
 
   // helper-text visibility (default on)
   const showHints = theme?.showHints !== false;
-  // grid-style pages fill the width; everything else stays a readable column
-  const wideView = (tab === "home" && homeView === "dash") || (tab === "tools" && toolView === "menu");
-  const shellClass = wideView ? "shell" : "col";
 
   return (
     <HintCtx.Provider value={showHints}>
@@ -786,15 +783,16 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
         .ffade{ animation: folioFade .35s ease both; }
         @keyframes folioSpin{ to{ transform: rotate(360deg); } }
         .fspin{ animation: folioSpin .8s linear infinite; }
-        /* Responsive content shell — grows with the window on every page */
+        /* Always reserve the scrollbar so navigating between short/tall pages
+           never shifts the centered content sideways. */
+        html{ overflow-y: scroll; }
+        /* One consistent content width on EVERY page (home → more). */
         .shell{ width:100%; margin:0 auto; max-width:600px; }
-        .col{ width:100%; max-width:640px; margin:0 auto; } /* readable column for forms/settings */
-        /* Dashboard: single column on phones, a real multi-column grid on desktop */
+        /* Dashboard + tools menu: single column on phones, two columns on desktop. */
         .dash{ display:flex; flex-direction:column; }
-        /* Tools menu: list on phones, tiles that fill the width on desktop */
         .toolgrid{ display:flex; flex-direction:column; }
-        @media (min-width: 900px){
-          .shell{ max-width:1040px; }
+        @media (min-width: 760px){
+          .shell{ max-width:760px; }
           .dash{ display:grid; grid-template-columns: 1fr 1fr; gap:14px; align-items:start; }
           .dash > *{ margin-bottom:0 !important; }
           .dash .span2{ grid-column: 1 / -1; }
@@ -812,7 +810,7 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
       )}
 
       {/* Header */}
-      <div className={shellClass} style={{ padding: isApp ? "calc(env(safe-area-inset-top) + 0.7rem) 1rem 0" : "1.4rem 1rem 0" }}>
+      <div className="shell" style={{ padding: isApp ? "calc(env(safe-area-inset-top) + 0.7rem) 1rem 0" : "1.4rem 1rem 0" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "10px" }}>
           {!isApp ? (
             <div style={{ display: "flex", alignItems: "center", gap: "11px" }}>
@@ -830,7 +828,7 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
       </div>
 
       {/* Pages */}
-      <div className={shellClass} style={{ padding: "0.8rem 1rem 5rem" }}>
+      <div className="shell" style={{ padding: "0.8rem 1rem 5rem" }}>
 
         {/* ── HOME ── */}
         {tab === "home" && homeView === "dash" && (() => {
@@ -872,7 +870,7 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
               </Card>
             ),
             stats: (
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: "8px", marginBottom: "10px" }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: "8px", marginBottom: "10px" }}>
                 <Metric label="Investing / mo" value={fmt(investable)} desc="From your plan" positive={true} />
                 <Metric label="Avg. return"    value={blendedRet.toFixed(1) + "%"} desc="Blended" positive={true} />
                 <Metric label="Net invested"   value={fmtK(totalDep - totalWith)} desc="Logged so far" positive={true} />
@@ -952,7 +950,7 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
             ),
           };
           const META = { netWorth: "Net worth", income: "Monthly income", stats: "Key stats", health: "Financial health", coach: "AI coach", goals: "Goals", activity: "Recent activity" };
-          const SPAN = { netWorth: true, coach: true, activity: true };
+          const SPAN = { netWorth: true, stats: true, coach: true, activity: true };
           const fullOrder = [...dashOrder.filter(id => DEFAULT_DASH.includes(id)), ...DEFAULT_DASH.filter(id => !dashOrder.includes(id))];
           const ordered = fullOrder.filter(id => W[id]); // only widgets that currently have content
           // Reorder within the *visible* widgets so moves never skip an absent one (e.g. Goals when empty).
@@ -1829,7 +1827,7 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
 
       {/* Bottom tab bar */}
       <div style={{ position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 40, background: C.glass, backdropFilter: "blur(20px) saturate(160%)", WebkitBackdropFilter: "blur(20px) saturate(160%)", borderTop: "0.5px solid " + C.border, boxShadow: "0 -12px 30px -18px rgba(0,0,0,0.6)", paddingBottom: "env(safe-area-inset-bottom)" }}>
-        <div style={{ maxWidth: 600, margin: "0 auto", display: "flex", gap: "4px", padding: "8px 10px" }}>
+        <div style={{ maxWidth: 440, margin: "0 auto", display: "flex", gap: "4px", padding: "8px 10px" }}>
           {[["home","Home"],["tools","Tools"],["log","Activity"],["more","More"]].map(([id, lbl]) => {
             const active = tab === id;
             return (
