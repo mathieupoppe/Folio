@@ -442,6 +442,41 @@ function Reveal({ cta, children, accent }) {
   );
 }
 
+// Onboarding tour — a clean step-through overlay. Auto-shows on first run and
+// can be relaunched from Settings.
+const TOUR_STEPS = [
+  { emoji: "👋", title: "Welcome to Folio", body: "Your money — planned, grown, and tracked in one calm place. Here's the 30-second tour." },
+  { emoji: "📊", title: "Your dashboard", body: "Net worth, income, and financial health at a glance. Tap Customize to reorder cards or hide what you don't need." },
+  { emoji: "🧰", title: "Tools", body: "A split planner, growth & FIRE simulators, debt payoff, savings rate and more — each one explains itself as you go." },
+  { emoji: "✨", title: "AI money coach", body: "Get an instant read on your finances, plus a deeper AI analysis with one tap." },
+  { emoji: "🧾", title: "Activity", body: "Log deposits and withdrawals to watch your balance build over time. Tap “+ Add a transaction” to start." },
+  { emoji: "⚙️", title: "Make it yours", body: "Themes, currency, your stats, and this tour all live under More. You're all set!" },
+];
+function Tutorial({ onClose }) {
+  const [i, setI] = useState(0);
+  const last = i === TOUR_STEPS.length - 1;
+  const step = TOUR_STEPS[i];
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 80, background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)", WebkitBackdropFilter: "blur(4px)", display: "flex", alignItems: "flex-end", justifyContent: "center", padding: "16px" }}>
+      <div onClick={e => e.stopPropagation()} className="ffade" style={{ width: "100%", maxWidth: 440, background: C.card, borderRadius: "20px", border: "0.5px solid " + C.border, boxShadow: C.shadow, padding: "1.4rem 1.3rem 1.2rem", marginBottom: "8px" }}>
+        <div style={{ width: 56, height: 56, borderRadius: "16px", background: C.accent + "1e", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "28px", margin: "0 auto 14px" }}>{step.emoji}</div>
+        <div style={{ fontSize: "19px", fontWeight: 800, textAlign: "center", letterSpacing: "-0.02em", marginBottom: "8px" }}>{step.title}</div>
+        <div style={{ fontSize: "14px", color: C.sub, textAlign: "center", lineHeight: 1.6, minHeight: "66px" }}>{step.body}</div>
+        <div style={{ display: "flex", gap: "6px", justifyContent: "center", margin: "16px 0" }}>
+          {TOUR_STEPS.map((_, idx) => (
+            <span key={idx} style={{ width: idx === i ? 20 : 7, height: 7, borderRadius: "4px", background: idx === i ? C.accent : C.border, transition: "all .2s" }} />
+          ))}
+        </div>
+        <div style={{ display: "flex", gap: "8px" }}>
+          {i > 0 && <button onClick={() => setI(i - 1)} style={{ flex: "0 0 auto", padding: "12px 18px", borderRadius: "12px", border: "0.5px solid " + C.border, background: C.surface, color: C.sub, fontWeight: 700, fontSize: "14px", cursor: "pointer" }}>Back</button>}
+          <button onClick={() => last ? onClose() : setI(i + 1)} style={{ flex: 1, padding: "12px", borderRadius: "12px", border: "none", background: C.accentGrad, boxShadow: C.glow, color: "#fff", fontWeight: 700, fontSize: "14px", cursor: "pointer" }}>{last ? "Get started" : "Next"}</button>
+        </div>
+        {!last && <button onClick={onClose} style={{ width: "100%", marginTop: "8px", padding: "8px", border: "none", background: "transparent", color: C.hint, fontSize: "13px", fontWeight: 600, cursor: "pointer" }}>Skip tour</button>}
+      </div>
+    </div>
+  );
+}
+
 const ICONS = {
   split: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="12" y1="3" x2="12" y2="12"/></svg>,
   grow:  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>,
@@ -490,6 +525,20 @@ function readCache() {
   return { settings, entries };
 }
 
+// Device-local usage tracking (kept out of the cloud blob to avoid sync races).
+const USAGE_KEY = "folio-usage";
+function readUsage() {
+  try { const u = JSON.parse(localStorage.getItem(USAGE_KEY) || "null"); if (u) return u; } catch {}
+  return { seconds: 0, sessions: 0, firstDay: null, days: [] };
+}
+function writeUsage(u) { try { localStorage.setItem(USAGE_KEY, JSON.stringify(u)); } catch {} }
+function fmtDuration(sec) {
+  const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60);
+  if (h >= 1) return `${h}h ${m}m`;
+  if (m >= 1) return `${m}m`;
+  return `${Math.max(0, Math.round(sec))}s`;
+}
+
 // true when running as an installed/native app (Capacitor, PWA, iOS standalone) vs a browser tab
 const isApp = typeof window !== "undefined" && (
   !!window.Capacitor ||
@@ -509,6 +558,30 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
   // local cache once, before first render
   const cache = useRef(null);
   if (cache.current === null) cache.current = readCache();
+
+  // usage tracking — count this session once, then tick up time while visible
+  const usage = useRef(null);
+  if (usage.current === null) {
+    const u = readUsage();
+    const today = new Date().toISOString().slice(0, 10);
+    u.sessions = (u.sessions || 0) + 1;
+    if (!u.firstDay) u.firstDay = today;
+    if (!Array.isArray(u.days)) u.days = [];
+    if (!u.days.includes(today)) u.days.push(today);
+    writeUsage(u);
+    usage.current = u;
+  }
+  useEffect(() => {
+    const id = setInterval(() => {
+      if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
+      const u = usage.current;
+      u.seconds = (u.seconds || 0) + 15;
+      const today = new Date().toISOString().slice(0, 10);
+      if (!u.days.includes(today)) u.days.push(today);
+      writeUsage(u);
+    }, 15000);
+    return () => clearInterval(id);
+  }, []);
   const s0 = cache.current.settings || {};
   const e0 = cache.current.entries  || [];
 
@@ -541,6 +614,10 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
 
   // subscription tracking: when on, due charges surface on the dashboard + calendar
   const [subTracking, setSubTracking] = useState(s0.subTracking !== false);
+
+  // onboarding tour — auto-show on first run, relaunchable from Settings
+  const [showTour, setShowTour] = useState(() => { try { return !localStorage.getItem("folio-tour-done"); } catch { return false; } });
+  const closeTour = () => { try { localStorage.setItem("folio-tour-done", "1"); } catch {} setShowTour(false); };
 
   // milestones view: "year" | "month"
   const [msView, setMsView] = useState("year");
@@ -1626,8 +1703,10 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
             <NavRow label="Membership" desc="Your plan & upgrade" onClick={() => setMoreView("membership")} />
             <NavRow label="Notifications" desc="Reminders & alerts" onClick={() => setMoreView("notifications")} />
             <NavRow label="Appearance" desc="Theme & accent color" onClick={() => setMoreView("appearance")} />
+            <NavRow label="Your stats" desc="Time in app & fun numbers" onClick={() => setMoreView("stats")} />
             <NavRow label="Data & backup" desc="Export or import your data" onClick={() => setMoreView("data")} />
             <NavRow label="Security" desc="Passcode & Face ID" onClick={() => setMoreView("security")} />
+            <NavRow label="Tutorial" desc="A quick guided tour of Folio" onClick={() => setShowTour(true)} />
             <NavRow label="Help & support" desc="FAQs & contact" onClick={() => setMoreView("help")} />
             <NavRow label="Report a bug" desc="Something broken? Let us know" onClick={() => setMoreView("bug")} />
             <NavRow label="Suggest a feature" desc="Ideas for new tools & features" onClick={() => setMoreView("idea")} />
@@ -1798,6 +1877,38 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
             </Card>
           </>}
 
+          {moreView === "stats" && (() => {
+            const u = usage.current;
+            const since = u.firstDay ? new Date(u.firstDay).toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric" }) : "today";
+            const biggest = entries.reduce((m, e) => Math.max(m, e.amount || 0), 0);
+            const avgTxn = entries.length ? (totalDep + totalWith) / entries.length : 0;
+            const goalsDone = goals.filter(g => (g.saved || 0) >= (g.target || 0) && (g.target || 0) > 0).length;
+            return <>
+              <BackBar title="Your stats" onBack={() => setMoreView("menu")} />
+              <Card style={{ background: C.accentGrad, border: "none", color: "#fff" }}>
+                <div style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", opacity: 0.85 }}>Time in Folio</div>
+                <div className="tnum" style={{ fontSize: "34px", fontWeight: 800, letterSpacing: "-0.03em", marginTop: "4px" }}>{fmtDuration(u.seconds)}</div>
+                <div style={{ fontSize: "12px", opacity: 0.9, marginTop: "2px" }}>Across {u.sessions} session{u.sessions === 1 ? "" : "s"} · since {since}</div>
+              </Card>
+              <Label text="Your journey" hint="The fun numbers behind your money." />
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: "8px", marginBottom: "10px" }}>
+                <Metric label="Days active" value={(u.days?.length || 0)} desc="Days you opened Folio" />
+                <Metric label="Transactions" value={entries.length} desc="Logged so far" />
+                <Metric label="Net worth" value={fmtK(netWorth)} desc="Right now" positive={netWorth >= 0} />
+                <Metric label="Net invested" value={fmtK(totalDep - totalWith)} desc="Still working for you" positive={true} />
+                <Metric label="Total deposited" value={fmtK(totalDep)} desc="Money put in" positive={true} />
+                <Metric label="Total withdrawn" value={fmtK(totalWith)} desc="Taken out" positive={false} />
+                <Metric label="Biggest single" value={fmtK(biggest)} desc="Largest transaction" />
+                <Metric label="Avg. transaction" value={fmtK(avgTxn)} desc="Per entry" />
+                <Metric label="Goals" value={`${goalsDone}/${goals.length}`} desc="Reached / set" positive={goalsDone > 0} />
+                <Metric label="Subscriptions" value={subs.length} desc={`${fmt(subsMonthly)}/mo tracked`} positive={false} />
+                <Metric label="Health score" value={healthScore + "/100"} desc={healthBand.t} positive={healthScore >= 60} />
+                <Metric label="Savings rate" value={Math.round(income > 0 ? (investable / income) * 100 : 0) + "%"} desc="Of your income" positive={true} />
+              </div>
+              <div style={{ fontSize: "11px", color: C.hint, textAlign: "center", padding: "4px 0 6px" }}>Time is tracked on this device only and never leaves it.</div>
+            </>;
+          })()}
+
           {moreView === "help" && <>
             <BackBar title="Help & support" onBack={() => setMoreView("menu")} />
             <Card>
@@ -1844,6 +1955,8 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
           })}
         </div>
       </div>
+
+      {showTour && <Tutorial onClose={closeTour} />}
     </div>
     </HintCtx.Provider>
   );

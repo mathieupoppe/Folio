@@ -37,7 +37,8 @@
       "Bash(git commit -q -m 'Edit-mode dashboard \\(reorder + hide\\) + responsive on every page *)",
       "Bash(git commit -q -m 'Lock-in buttons: collapse add-forms behind reveal buttons *)",
       "Bash(perl -0pi -e 's/className=\\\\{shellClass\\\\}/className=\"shell\"/g' src/folio.jsx)",
-      "Bash(git commit -q -m 'Fix desktop layout: chart scaling, consistent width, no page shift *)"
+      "Bash(git commit -q -m 'Fix desktop layout: chart scaling, consistent width, no page shift *)",
+      "Bash(git commit -q -m 'Add onboarding tutorial + Your stats screen *)"
     ]
   }
 }
