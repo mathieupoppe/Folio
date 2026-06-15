@@ -442,36 +442,87 @@ function Reveal({ cta, children, accent }) {
   );
 }
 
-// Onboarding tour — a clean step-through overlay. Auto-shows on first run and
-// can be relaunched from Settings.
+// Onboarding tour — a guided spotlight walkthrough. Each step switches to the
+// relevant tab and highlights the element it describes (via [data-tour="…"]).
+// Auto-shows on first run; relaunchable from Settings.
 const TOUR_STEPS = [
-  { emoji: "👋", title: "Welcome to Folio", body: "Your money — planned, grown, and tracked in one calm place. Here's the 30-second tour." },
-  { emoji: "📊", title: "Your dashboard", body: "Net worth, income, and financial health at a glance. Tap Customize to reorder cards or hide what you don't need." },
-  { emoji: "🧰", title: "Tools", body: "A split planner, growth & FIRE simulators, debt payoff, savings rate and more — each one explains itself as you go." },
-  { emoji: "✨", title: "AI money coach", body: "Get an instant read on your finances, plus a deeper AI analysis with one tap." },
-  { emoji: "🧾", title: "Activity", body: "Log deposits and withdrawals to watch your balance build over time. Tap “+ Add a transaction” to start." },
-  { emoji: "⚙️", title: "Make it yours", body: "Themes, currency, your stats, and this tour all live under More. You're all set!" },
+  { emoji: "👋", title: "Welcome to Folio", body: "Your money — planned, grown, and tracked in one calm place. Here's a quick guided tour.", tab: "home", target: null },
+  { emoji: "📊", title: "Your net worth", body: "This card tracks everything you own minus what you owe, charted over time.", tab: "home", target: "networth" },
+  { emoji: "🎛️", title: "Make it yours", body: "Tap Customize to reorder your dashboard cards or hide the ones you don't need.", tab: "home", target: "customize" },
+  { emoji: "✨", title: "AI money coach", body: "Get an instant read on your finances — plus a deeper AI analysis with one tap.", tab: "home", target: "coach" },
+  { emoji: "🧰", title: "Tools", body: "A split planner, growth & FIRE simulators, debt payoff and more — each explains itself as you go.", tab: "tools", target: "toolgrid" },
+  { emoji: "🧾", title: "Activity", body: "Log deposits and withdrawals here to watch your balance build over time.", tab: "log", target: "addtxn" },
+  { emoji: "⚙️", title: "Everything else", body: "Themes, currency, your stats, and this tour all live under More. You're all set!", tab: "more", target: "nav-more" },
 ];
-function Tutorial({ onClose }) {
+function Tutorial({ onClose, onNavigate }) {
   const [i, setI] = useState(0);
-  const last = i === TOUR_STEPS.length - 1;
+  const [rect, setRect] = useState(null);
   const step = TOUR_STEPS[i];
+  const last = i === TOUR_STEPS.length - 1;
+
+  useEffect(() => {
+    let cancelled = false;
+    if (step.tab) onNavigate(step.tab);
+    const measure = () => {
+      if (cancelled) return;
+      const el = step.target && document.querySelector(`[data-tour="${step.target}"]`);
+      if (!el) { setRect(null); return; }
+      const r = el.getBoundingClientRect();
+      setRect({ top: r.top, left: r.left, width: r.width, height: r.height });
+    };
+    // wait for the new tab to render, scroll the target into view, then measure
+    const t = setTimeout(() => {
+      const el = step.target && document.querySelector(`[data-tour="${step.target}"]`);
+      if (el) el.scrollIntoView({ block: "center", behavior: "smooth" });
+      setTimeout(measure, 380);
+    }, 200);
+    window.addEventListener("scroll", measure, true);
+    window.addEventListener("resize", measure);
+    return () => { cancelled = true; clearTimeout(t); window.removeEventListener("scroll", measure, true); window.removeEventListener("resize", measure); };
+  }, [i]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const vw = typeof window !== "undefined" ? window.innerWidth : 400;
+  const vh = typeof window !== "undefined" ? window.innerHeight : 800;
+  const cardW = Math.min(420, vw - 24);
+  const CARD_H = 300;
+  let cardStyle;
+  if (rect) {
+    const below = vh - (rect.top + rect.height);
+    const placeBelow = below > rect.top; // more room under the target than above
+    const left = Math.max(12, Math.min(rect.left + rect.width / 2 - cardW / 2, vw - cardW - 12));
+    const top = placeBelow
+      ? Math.min(rect.top + rect.height + 14, vh - CARD_H - 12)
+      : Math.max(12, rect.top - CARD_H + 40);
+    cardStyle = { top: Math.max(12, top), left };
+  } else {
+    cardStyle = { top: "50%", left: "50%", transform: "translate(-50%,-50%)" };
+  }
+
   return (
-    <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 80, background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)", WebkitBackdropFilter: "blur(4px)", display: "flex", alignItems: "flex-end", justifyContent: "center", padding: "16px" }}>
-      <div onClick={e => e.stopPropagation()} className="ffade" style={{ width: "100%", maxWidth: 440, background: C.card, borderRadius: "20px", border: "0.5px solid " + C.border, boxShadow: C.shadow, padding: "1.4rem 1.3rem 1.2rem", marginBottom: "8px" }}>
-        <div style={{ width: 56, height: 56, borderRadius: "16px", background: C.accent + "1e", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "28px", margin: "0 auto 14px" }}>{step.emoji}</div>
-        <div style={{ fontSize: "19px", fontWeight: 800, textAlign: "center", letterSpacing: "-0.02em", marginBottom: "8px" }}>{step.title}</div>
-        <div style={{ fontSize: "14px", color: C.sub, textAlign: "center", lineHeight: 1.6, minHeight: "66px" }}>{step.body}</div>
-        <div style={{ display: "flex", gap: "6px", justifyContent: "center", margin: "16px 0" }}>
+    <div style={{ position: "fixed", inset: 0, zIndex: 80 }}>
+      {/* dim + click-catcher; full dim only when nothing is spotlighted */}
+      <div onClick={() => {}} style={{ position: "absolute", inset: 0, background: rect ? "transparent" : "rgba(0,0,0,0.62)", backdropFilter: rect ? "none" : "blur(3px)", WebkitBackdropFilter: rect ? "none" : "blur(3px)" }} />
+      {/* spotlight: the surrounding dim is the box-shadow spread */}
+      {rect && (
+        <div style={{ position: "fixed", top: rect.top - 6, left: rect.left - 6, width: rect.width + 12, height: rect.height + 12, borderRadius: "14px", boxShadow: `0 0 0 9999px rgba(0,0,0,0.62), 0 0 0 2px ${C.accent}, ${C.glow}`, pointerEvents: "none", transition: "all .28s cubic-bezier(.4,0,.2,1)" }} />
+      )}
+      <div className="ffade" style={{ position: "fixed", width: cardW, background: C.card, borderRadius: "18px", border: "0.5px solid " + C.border, boxShadow: C.shadow, padding: "1.2rem 1.2rem 1rem", zIndex: 82, ...cardStyle }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "11px", marginBottom: "10px" }}>
+          <div style={{ width: 44, height: 44, borderRadius: "13px", flexShrink: 0, background: C.accent + "1e", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "22px" }}>{step.emoji}</div>
+          <div style={{ fontSize: "17px", fontWeight: 800, letterSpacing: "-0.02em" }}>{step.title}</div>
+        </div>
+        <div style={{ fontSize: "13.5px", color: C.sub, lineHeight: 1.55 }}>{step.body}</div>
+        <div style={{ display: "flex", gap: "6px", margin: "14px 0" }}>
           {TOUR_STEPS.map((_, idx) => (
-            <span key={idx} style={{ width: idx === i ? 20 : 7, height: 7, borderRadius: "4px", background: idx === i ? C.accent : C.border, transition: "all .2s" }} />
+            <span key={idx} style={{ width: idx === i ? 18 : 7, height: 7, borderRadius: "4px", background: idx === i ? C.accent : C.border, transition: "all .2s" }} />
           ))}
         </div>
-        <div style={{ display: "flex", gap: "8px" }}>
-          {i > 0 && <button onClick={() => setI(i - 1)} style={{ flex: "0 0 auto", padding: "12px 18px", borderRadius: "12px", border: "0.5px solid " + C.border, background: C.surface, color: C.sub, fontWeight: 700, fontSize: "14px", cursor: "pointer" }}>Back</button>}
-          <button onClick={() => last ? onClose() : setI(i + 1)} style={{ flex: 1, padding: "12px", borderRadius: "12px", border: "none", background: C.accentGrad, boxShadow: C.glow, color: "#fff", fontWeight: 700, fontSize: "14px", cursor: "pointer" }}>{last ? "Get started" : "Next"}</button>
+        <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+          {i > 0 && <button onClick={() => setI(i - 1)} style={{ flex: "0 0 auto", padding: "11px 16px", borderRadius: "11px", border: "0.5px solid " + C.border, background: C.surface, color: C.sub, fontWeight: 700, fontSize: "13px", cursor: "pointer" }}>Back</button>}
+          <button onClick={() => last ? onClose() : setI(i + 1)} style={{ flex: 1, padding: "11px", borderRadius: "11px", border: "none", background: C.accentGrad, boxShadow: C.glow, color: "#fff", fontWeight: 700, fontSize: "14px", cursor: "pointer" }}>{last ? "Get started" : "Next"}</button>
+          <span style={{ fontSize: "12px", color: C.hint, flexShrink: 0 }}>{i + 1}/{TOUR_STEPS.length}</span>
         </div>
-        {!last && <button onClick={onClose} style={{ width: "100%", marginTop: "8px", padding: "8px", border: "none", background: "transparent", color: C.hint, fontSize: "13px", fontWeight: 600, cursor: "pointer" }}>Skip tour</button>}
+        {!last && <button onClick={onClose} style={{ width: "100%", marginTop: "8px", padding: "6px", border: "none", background: "transparent", color: C.hint, fontSize: "12px", fontWeight: 600, cursor: "pointer" }}>Skip tour</button>}
       </div>
     </div>
   );
@@ -1045,7 +1096,7 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
             <>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
                 {dashEdit ? <span style={{ fontSize: "12px", color: C.hint }}>Reorder or hide your widgets.</span> : <span />}
-                <button onClick={() => setDashEdit(e => !e)} style={{ padding: "7px 15px", borderRadius: "10px", border: "0.5px solid " + (dashEdit ? C.accent : C.border), background: dashEdit ? C.accent : C.surface, color: dashEdit ? "#fff" : C.sub, fontSize: "12px", fontWeight: 700, cursor: "pointer" }}>{dashEdit ? "✓ Done" : "✎ Customize"}</button>
+                <button data-tour="customize" onClick={() => setDashEdit(e => !e)} style={{ padding: "7px 15px", borderRadius: "10px", border: "0.5px solid " + (dashEdit ? C.accent : C.border), background: dashEdit ? C.accent : C.surface, color: dashEdit ? "#fff" : C.sub, fontSize: "12px", fontWeight: 700, cursor: "pointer" }}>{dashEdit ? "✓ Done" : "✎ Customize"}</button>
               </div>
 
               {subTracking && dueCharges.length > 0 && !dashEdit && (
@@ -1068,7 +1119,7 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
                   const hidden = dashHidden.includes(id);
                   if (hidden && !dashEdit) return null;
                   return (
-                    <div key={id} className={SPAN[id] ? "span2" : ""} style={{ opacity: hidden ? 0.45 : 1 }}>
+                    <div key={id} data-tour={id === "netWorth" ? "networth" : id === "coach" ? "coach" : undefined} className={SPAN[id] ? "span2" : ""} style={{ opacity: hidden ? 0.45 : 1 }}>
                       {dashEdit && (
                         <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "8px" }}>
                           <span style={{ flex: 1, fontSize: "11px", fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: C.hint, minWidth: 0 }}>{META[id]}</span>
@@ -1128,7 +1179,7 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
 
         {/* ── TOOLS MENU ── */}
         {tab === "tools" && toolView === "menu" && <>
-          <div className="toolgrid">
+          <div className="toolgrid" data-tour="toolgrid">
             {[
               ["advisor", "AI money coach", "Personalized analysis of your finances"],
               ["split", "Split planner", "Plan spending & investing from your income"],
@@ -1624,6 +1675,7 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
             <Metric label="Transactions"     value={entries.length}             desc="Entries logged" />
           </div>
 
+          <div data-tour="addtxn">
           <Reveal cta="Add a transaction" accent>
             {close => (
               <Card>
@@ -1656,6 +1708,7 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
               </Card>
             )}
           </Reveal>
+          </div>
 
           {entries.length > 0 ? (
             <Card>
@@ -1942,7 +1995,7 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
           {[["home","Home"],["tools","Tools"],["log","Activity"],["more","More"]].map(([id, lbl]) => {
             const active = tab === id;
             return (
-              <button key={id} onClick={() => { setTab(id); if (id === "more") setMoreView("menu"); if (id === "tools") setToolView("menu"); if (id === "home") setHomeView("dash"); }} style={{
+              <button key={id} data-tour={"nav-" + id} onClick={() => { setTab(id); if (id === "more") setMoreView("menu"); if (id === "tools") setToolView("menu"); if (id === "home") setHomeView("dash"); }} style={{
                 flex: 1, padding: "8px 2px", borderRadius: "13px", border: "none", cursor: "pointer",
                 background: active ? C.accent + "1f" : "transparent", color: active ? C.accent : C.sub,
                 fontWeight: active ? 700 : 500, fontSize: "10px",
@@ -1956,7 +2009,7 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
         </div>
       </div>
 
-      {showTour && <Tutorial onClose={closeTour} />}
+      {showTour && <Tutorial onClose={closeTour} onNavigate={(t) => { setTab(t); if (t === "more") setMoreView("menu"); if (t === "tools") setToolView("menu"); if (t === "home") setHomeView("dash"); }} />}
     </div>
     </HintCtx.Provider>
   );
