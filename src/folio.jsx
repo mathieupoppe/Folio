@@ -15,6 +15,7 @@ import {
 import Advisor from "./Advisor";
 import Watchlist, { WatchlistWidget } from "./Watchlist";
 import HoldingsEditor from "./Holdings";
+import BudgetTool, { budgetPeriod } from "./Budget";
 import { fetchQuotes } from "./market";
 import Feedback from "./Feedback";
 import { GrowthChart, LogChart, NetWorthChart, Donut } from "./components/charts";
@@ -536,6 +537,7 @@ const TOOL_ICONS = {
   advisor:   <><path d="M12 3l1.9 4.8L18.7 9.7l-4.8 1.9L12 16.4l-1.9-4.8L5.3 9.7l4.8-1.9z"/><path d="M19 14l.6 1.7 1.7.6-1.7.6-.6 1.7-.6-1.7-1.7-.6 1.7-.6z"/></>,
   watchlist: <><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></>,
   split:     <><path d="M12 2a10 10 0 1 0 10 10"/><path d="M12 2v10h10"/></>,
+  budget:    <><path d="M3 3v18h18"/><rect x="7" y="11" width="3" height="7" rx="0.5"/><rect x="12.5" y="7" width="3" height="11" rx="0.5"/><rect x="18" y="13" width="3" height="5" rx="0.5"/></>,
   grow:      <><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></>,
   health:    <><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8z"/></>,
   goals:     <><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></>,
@@ -674,6 +676,7 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
   const [assets,      setAssets]      = useState(s0.assets      ?? []);
   const [liabilities, setLiabilities] = useState(s0.liabilities ?? []);
   const [holdings,    setHoldings]    = useState(s0.holdings    ?? []); // [{ id, symbol, name, qty }] — live-valued
+  const [budget,      setBudget]      = useState(s0.budget      ?? { period: "", spent: {} }); // monthly spend-vs-plan
   const [holdingsQuotes, setHoldingsQuotes] = useState([]);            // live prices for holdings (transient)
   const [nwHistory,   setNwHistory]   = useState(s0.nwHistory   ?? []); // [{date, value}] daily snapshots
   const [goals,       setGoals]       = useState(s0.goals       ?? []); // [{id, name, target, saved}]
@@ -720,6 +723,7 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
     if (st.rate      != null) setRate(st.rate);
     if (Array.isArray(st.assets))      setAssets(st.assets);
     if (Array.isArray(st.holdings))    setHoldings(st.holdings);
+    if (st.budget && typeof st.budget === "object") setBudget(st.budget);
     if (Array.isArray(st.liabilities)) setLiabilities(st.liabilities);
     if (Array.isArray(st.nwHistory))   setNwHistory(st.nwHistory);
     if (Array.isArray(st.goals))       setGoals(st.goals);
@@ -753,7 +757,7 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
 
   // local cache always; debounced, conflict-aware cloud save once hydrated
   useEffect(() => {
-    const blob = { settings: { income, spendPct, investBuckets, spendBuckets, principal, monthly, years, rate, assets, liabilities, nwHistory, goals, subs, profile, dashOrder, dashHidden, subTracking, watchlist, holdings }, entries };
+    const blob = { settings: { income, spendPct, investBuckets, spendBuckets, principal, monthly, years, rate, assets, liabilities, nwHistory, goals, subs, profile, dashOrder, dashHidden, subTracking, watchlist, holdings, budget }, entries };
     try { localStorage.setItem(LOCAL_KEY, JSON.stringify(blob)); }
     catch (e) { console.warn("Folio: couldn't save to local storage —", e?.message || e); }
     if (!hydrated.current || !userId) return;
@@ -774,7 +778,7 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
       }).catch(() => setSync("error"));
     }, 800);
     return () => clearTimeout(t);
-  }, [income, spendPct, investBuckets, spendBuckets, principal, monthly, years, rate, assets, liabilities, nwHistory, goals, subs, profile, dashOrder, dashHidden, subTracking, watchlist, holdings, entries, userId, retryNonce]);
+  }, [income, spendPct, investBuckets, spendBuckets, principal, monthly, years, rate, assets, liabilities, nwHistory, goals, subs, profile, dashOrder, dashHidden, subTracking, watchlist, holdings, budget, entries, userId, retryNonce]);
 
   const addEntry = () => {
     const amt = parseFloat(logAmount);
@@ -897,6 +901,12 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
     totalAssets, totalLiab, netWorth, healthScore,
     nwHistory: nwHistory.slice(-30),
     transactions: entries.length,
+    budget: (budget?.period === budgetPeriod() && spendMoney > 0) ? {
+      month: budget.period,
+      categories: spendBuckets.filter(b => (b.pct || 0) > 0).map(b => ({
+        label: b.label, budgeted: Math.round(spendMoney * (b.pct / 100)), spent: Math.round(budget.spent?.[b.id] || 0),
+      })),
+    } : null,
   };
 
   // keep live prices for holdings fresh so net worth tracks the market
@@ -1239,6 +1249,7 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
               ["advisor", "AI money coach", "Personalized analysis of your finances"],
               ["watchlist", "Watchlist", "Live crypto & commodity prices"],
               ["split", "Split planner", "Plan spending & investing from your income"],
+              ["budget", "Budget", "Track spending vs your plan, by category"],
               ["grow", "Growth simulator", "See how investments compound over time"],
               ["health", "Financial health", "Your overall money score"],
               ["goals", "Goals", "Set savings targets & track progress"],
@@ -1376,6 +1387,12 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
             See {fmt(investable)}/mo grow at {blendedRet.toFixed(1)}%
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={C.onAccent} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
           </button>
+        </>}
+
+        {/* ── BUDGET (Tools) ── */}
+        {tab === "tools" && toolView === "budget" && <>
+          <BackBar title="Budget" onBack={() => setToolView("menu")} />
+          <BudgetTool spendBuckets={spendBuckets} spendMoney={spendMoney} budget={budget} setBudget={setBudget} currency={theme?.currency || "EUR"} showHints={showHints} onPlan={() => setToolView("split")} />
         </>}
 
         {/* ── GROW (Tools) ── */}
