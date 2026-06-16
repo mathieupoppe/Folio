@@ -1,33 +1,27 @@
-// Structural palettes per mode. accent/up/down are layered on top.
-// Premium depth tokens: cardTop/card give cards a soft top-to-bottom gradient,
-// shadow/shadowSm add elevation, hi is an inset top-edge highlight, glass is the
-// translucent bottom-nav fill.
+// Monochrome (getquin-style) palettes. True black, white text, grey subtext.
+// Color is reserved for up/down only. Cards are near-black with hairline borders
+// and almost no elevation — flat and clean.
 const DARK = {
-  bg: "#080a11", surface: "#11141d", card: "#171b27", cardTop: "#1c2231", border: "#2a3145",
-  text: "#f1f3fb", sub: "#9aa3bd", hint: "#5b6279",
-  shadow: "0 18px 40px -20px rgba(0,0,0,0.75), 0 4px 14px -8px rgba(0,0,0,0.55)",
-  shadowSm: "0 8px 20px -12px rgba(0,0,0,0.6)",
-  hi: "inset 0 1px 0 rgba(255,255,255,0.06)",
-  glass: "rgba(12,15,23,0.72)",
+  bg: "#000000", surface: "#0d0d0f", card: "#111113", cardTop: "#141416", border: "#242427",
+  text: "#ffffff", sub: "#9a9aa1", hint: "#646469",
+  shadow: "0 1px 0 rgba(255,255,255,0.02)",
+  shadowSm: "none",
+  hi: "none",
+  glass: "rgba(0,0,0,0.78)",
 };
 const LIGHT = {
-  bg: "#eceef5", surface: "#f5f6fb", card: "#ffffff", cardTop: "#ffffff", border: "#e4e7f1",
-  text: "#171a24", sub: "#5a6178", hint: "#959cb0",
-  shadow: "0 16px 36px -18px rgba(28,40,80,0.20), 0 4px 12px -6px rgba(28,40,80,0.10)",
-  shadowSm: "0 8px 20px -12px rgba(28,40,80,0.16)",
-  hi: "inset 0 1px 0 rgba(255,255,255,0.9)",
-  glass: "rgba(255,255,255,0.72)",
+  bg: "#ffffff", surface: "#f5f5f7", card: "#ffffff", cardTop: "#ffffff", border: "#e6e6ea",
+  text: "#0a0a0b", sub: "#6b6b73", hint: "#9a9aa1",
+  shadow: "0 1px 2px rgba(0,0,0,0.05)",
+  shadowSm: "none",
+  hi: "none",
+  glass: "rgba(255,255,255,0.82)",
 };
 
-// A few quick presets — the color wheel covers everything else.
+// Accent is monochrome now (white on dark, black on light). Kept as a 1-entry
+// list so any remaining references resolve; the picker UI has been removed.
 export const ACCENTS = [
-  { key: "red",    accent: "#f0565b", accentD: "#d23a40" },
-  { key: "orange", accent: "#f0a23c", accentD: "#d4831c" },
-  { key: "green",  accent: "#3dd68c", accentD: "#22b070" },
-  { key: "teal",   accent: "#2fbed6", accentD: "#1d97ab" },
-  { key: "blue",   accent: "#5b7fff", accentD: "#3a5ce8" },
-  { key: "violet", accent: "#a06bff", accentD: "#7d44e0" },
-  { key: "pink",   accent: "#f0609a", accentD: "#d43d7a" },
+  { key: "mono", accent: "#f5f5f7", accentD: "#d4d4d8" },
 ];
 
 // darken a #rrggbb (or #rgb) hex by a fraction — used to derive the gradient
@@ -75,34 +69,32 @@ export const LANGUAGES = [
   { code: "hi", label: "Hindi",      native: "हिन्दी" },
 ];
 
-// the live theme object every component reads (mutated in place by applyTheme)
+// the live theme object every component reads (mutated in place by applyTheme).
+// onAccent = text/icon color that sits ON an accent fill (black on the white
+// dark-mode accent, white on the black light-mode accent).
 export const C = {
-  up: "#3dd68c", down: "#f05c5c",
-  ...DARK, accent: "#5b7fff", accentD: "#3a5ce8",
+  up: "#30d158", down: "#ff453a",
+  ...DARK, accent: "#f5f5f7", accentD: "#d4d4d8", onAccent: "#000000",
   cardGrad: "", accentGrad: "", glow: "", bgGlow: "",
 };
 
-export const DEFAULT_THEME = { mode: "dark", accent: "blue", currency: "EUR", language: "en" };
+export const DEFAULT_THEME = { mode: "dark", accent: "mono", currency: "EUR", language: "en" };
 
 let CUR = CURRENCIES[0]; // active currency
 
-export function applyTheme(mode, accentKey, customHex) {
+export function applyTheme(mode, accentKey, customHex) { // eslint-disable-line no-unused-vars
   const isLight = mode === "light";
   Object.assign(C, isLight ? LIGHT : DARK);
-  if (accentKey === "custom" && customHex) {
-    C.accent = customHex; C.accentD = darken(customHex, 0.22);
-  } else {
-    const a = ACCENTS.find(x => x.key === accentKey) || ACCENTS.find(x => x.key === "blue");
-    C.accent = a.accent; C.accentD = a.accentD;
-  }
-  // derived premium tokens (depend on the freshly-assigned mode + accent)
-  C.cardGrad = `linear-gradient(180deg, ${C.cardTop}, ${C.card})`;
-  C.accentGrad = `linear-gradient(135deg, ${C.accent}, ${C.accentD})`;
-  C.glow = `0 10px 26px -10px ${C.accent}${isLight ? "59" : "6e"}`;
-  // soft pools of accent light behind the page — subtle, never garish
-  C.bgGlow = isLight
-    ? `radial-gradient(900px 480px at 50% -8%, ${C.accent}1f, transparent 62%), radial-gradient(700px 420px at 100% 8%, ${C.accent}14, transparent 60%)`
-    : `radial-gradient(900px 520px at 50% -10%, ${C.accent}24, transparent 60%), radial-gradient(760px 460px at 100% 6%, ${C.accent}16, transparent 58%)`;
+  // Monochrome accent: white on dark, near-black on light. Text on the accent
+  // fill is the inverse so white CTA pills read with black text (getquin style).
+  C.accent = isLight ? "#0a0a0b" : "#f5f5f7";
+  C.accentD = isLight ? "#26262a" : "#d4d4d8";
+  C.onAccent = isLight ? "#ffffff" : "#000000";
+  // flat, monochrome — no gradients, no glow, no accent light pools
+  C.cardGrad = C.card;
+  C.accentGrad = C.accent;
+  C.glow = "none";
+  C.bgGlow = "none";
   if (typeof document !== "undefined") {
     document.body.style.background = C.bg;
     document.body.style.backgroundImage = C.bgGlow;

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, createContext, useContext } from "react";
-import { C, fmt, fmtK, curSymbol, ACCENTS, CURRENCIES, LANGUAGES } from "./theme";
+import { C, fmt, fmtK, curSymbol, CURRENCIES, LANGUAGES } from "./theme";
 import { fetchData, saveDataSafe } from "./cloud";
 import {
   calcGrowth as calcGrowthLib,
@@ -290,7 +290,7 @@ function AssetPicker({ open, onClose, title, subtitle, items, taken, onPick, onA
           <input placeholder="Add your own…" value={custom} onChange={e => setCustom(e.target.value)}
             onKeyDown={e => e.key === "Enter" && add()}
             style={{ flex: 1, padding: "11px 12px", borderRadius: "10px", border: "0.5px solid " + C.border, background: C.card, color: C.text, fontSize: "13px", outline: "none" }} />
-          <button onClick={add} style={{ padding: "11px 18px", borderRadius: "10px", border: "none", background: C.accent, color: "#fff", fontWeight: 700, fontSize: "13px", cursor: "pointer" }}>Add</button>
+          <button onClick={add} style={{ padding: "11px 18px", borderRadius: "10px", border: "none", background: C.accent, color: C.onAccent, fontWeight: 700, fontSize: "13px", cursor: "pointer" }}>Add</button>
         </div>
       </div>
     </div>
@@ -339,7 +339,7 @@ function GoalAdder({ onAdd }) {
       <input placeholder="Goal name (e.g. Emergency fund)" value={name} onChange={e => setName(e.target.value)} style={inp} />
       <div style={{ display: "flex", gap: "8px" }}>
         <input type="number" placeholder="Target amount" value={target} onChange={e => setTarget(e.target.value)} onKeyDown={e => e.key === "Enter" && add()} style={{ ...inp, flex: 1 }} />
-        <button onClick={add} style={{ padding: "10px 18px", borderRadius: "10px", border: "none", background: C.accent, color: "#fff", fontWeight: 700, fontSize: "13px", cursor: "pointer" }}>Add</button>
+        <button onClick={add} style={{ padding: "10px 18px", borderRadius: "10px", border: "none", background: C.accent, color: C.onAccent, fontWeight: 700, fontSize: "13px", cursor: "pointer" }}>Add</button>
       </div>
     </div>
   );
@@ -362,7 +362,7 @@ function SubAdder({ onAdd, inputStyle }) {
           <button key={c} onClick={() => setCycle(c)} style={{ padding: "0 12px", borderRadius: "10px", fontSize: "12px", fontWeight: 600, cursor: "pointer", border: "1px solid " + (cycle === c ? C.accent : C.border), background: cycle === c ? C.accent + "18" : C.surface, color: cycle === c ? C.accent : C.sub }}>{c === "monthly" ? "mo" : "yr"}</button>
         ))}
       </div>
-      <button onClick={add} style={{ padding: "11px", borderRadius: "10px", border: "none", background: C.accent, color: "#fff", fontWeight: 700, fontSize: "13px", cursor: "pointer" }}>Add subscription</button>
+      <button onClick={add} style={{ padding: "11px", borderRadius: "10px", border: "none", background: C.accent, color: C.onAccent, fontWeight: 700, fontSize: "13px", cursor: "pointer" }}>Add subscription</button>
     </div>
   );
 }
@@ -387,7 +387,7 @@ function MoneyItemList({ items, setItems, color }) {
       <div style={{ display: "grid", gridTemplateColumns: "1fr 96px auto", gap: "8px", marginTop: "10px" }}>
         <input placeholder="Name" value={name} onChange={e => setName(e.target.value)} aria-label="Item name" style={inp} />
         <input type="number" placeholder="Amount" value={amt} onChange={e => setAmt(e.target.value)} onKeyDown={e => e.key === "Enter" && add()} aria-label="Item amount" style={inp} />
-        <button onClick={add} style={{ padding: "0 16px", borderRadius: "10px", border: "none", background: C.accent, color: "#fff", fontWeight: 700, fontSize: "13px", cursor: "pointer" }}>Add</button>
+        <button onClick={add} style={{ padding: "0 16px", borderRadius: "10px", border: "none", background: C.accent, color: C.onAccent, fontWeight: 700, fontSize: "13px", cursor: "pointer" }}>Add</button>
       </div>
     </>
   );
@@ -519,7 +519,7 @@ function Tutorial({ onClose, onNavigate }) {
         </div>
         <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
           {i > 0 && <button onClick={() => setI(i - 1)} style={{ flex: "0 0 auto", padding: "11px 16px", borderRadius: "11px", border: "0.5px solid " + C.border, background: C.surface, color: C.sub, fontWeight: 700, fontSize: "13px", cursor: "pointer" }}>Back</button>}
-          <button onClick={() => last ? onClose() : setI(i + 1)} style={{ flex: 1, padding: "11px", borderRadius: "11px", border: "none", background: C.accentGrad, boxShadow: C.glow, color: "#fff", fontWeight: 700, fontSize: "14px", cursor: "pointer" }}>{last ? "Get started" : "Next"}</button>
+          <button onClick={() => last ? onClose() : setI(i + 1)} style={{ flex: 1, padding: "11px", borderRadius: "11px", border: "none", background: C.accentGrad, boxShadow: C.glow, color: C.onAccent, fontWeight: 700, fontSize: "14px", cursor: "pointer" }}>{last ? "Get started" : "Next"}</button>
           <span style={{ fontSize: "12px", color: C.hint, flexShrink: 0 }}>{i + 1}/{TOUR_STEPS.length}</span>
         </div>
         {!last && <button onClick={onClose} style={{ width: "100%", marginTop: "8px", padding: "6px", border: "none", background: "transparent", color: C.hint, fontSize: "12px", fontWeight: 600, cursor: "pointer" }}>Skip tour</button>}
@@ -680,7 +680,6 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
   const [dashOrder,  setDashOrder]  = useState(s0.dashOrder  ?? DEFAULT_DASH);
   const [dashHidden, setDashHidden] = useState(s0.dashHidden ?? []);
   const [dashEdit,   setDashEdit]   = useState(false);
-  const [accentOpen, setAccentOpen] = useState(false); // appearance: accent picker expanded
   const [logAddOpen, setLogAddOpen] = useState(false); // activity sub-page: add-transaction form open
 
   // subscription tracking: when on, due charges surface on the dashboard + calendar
@@ -963,7 +962,7 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
           {!isApp ? (
             <div style={{ display: "flex", alignItems: "center", gap: "11px" }}>
               <div style={{ width: 36, height: 36, borderRadius: "12px", background: C.accentGrad, boxShadow: C.glow + ", " + C.hi, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>
+                <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke={C.onAccent} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>
               </div>
               <div>
                 <div style={{ fontSize: "18px", fontWeight: 800, letterSpacing: "-0.03em", color: C.text }}>Folio</div>
@@ -1001,7 +1000,7 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
                 <div style={{ display: "flex", gap: "6px", marginTop: "10px" }}>
                   {[["1D","1D"],["1W","1W"],["1M","1M"],["1Y","1Y"],["MAX","Max"]].map(([val, lbl]) => {
                     const on = nwPeriod === val;
-                    return <button key={val} onClick={() => setNwPeriod(val)} style={{ flex: 1, padding: "6px 4px", borderRadius: "8px", border: "none", cursor: "pointer", fontSize: "12px", fontWeight: on ? 700 : 500, background: on ? C.accent : C.surface, color: on ? "#fff" : C.sub }}>{lbl}</button>;
+                    return <button key={val} onClick={() => setNwPeriod(val)} style={{ flex: 1, padding: "6px 4px", borderRadius: "8px", border: "none", cursor: "pointer", fontSize: "12px", fontWeight: on ? 700 : 500, background: on ? C.accent : C.surface, color: on ? C.onAccent : C.sub }}>{lbl}</button>;
                   })}
                 </div>
               </Card>
@@ -1042,17 +1041,17 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
             ),
             coach: (
               <button onClick={() => { setTab("tools"); setToolView("advisor"); }} style={{
-                width: "100%", textAlign: "left", marginBottom: "10px", padding: "1rem 1.1rem", borderRadius: "16px", border: "none", cursor: "pointer",
-                background: C.accentGrad, boxShadow: C.glow, color: "#fff", display: "flex", alignItems: "center", gap: "12px",
+                width: "100%", textAlign: "left", marginBottom: "10px", padding: "1rem 1.1rem", borderRadius: "16px", border: "0.5px solid " + C.border, cursor: "pointer",
+                background: C.card, color: C.text, display: "flex", alignItems: "center", gap: "12px",
               }}>
-                <span style={{ width: 38, height: 38, borderRadius: "11px", flexShrink: 0, background: "rgba(255,255,255,0.18)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3l1.9 4.8L18.7 9.7l-4.8 1.9L12 16.4l-1.9-4.8L5.3 9.7l4.8-1.9z"/><path d="M19 14l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"/></svg>
+                <span style={{ width: 38, height: 38, borderRadius: "11px", flexShrink: 0, background: C.accent, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={C.onAccent} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3l1.9 4.8L18.7 9.7l-4.8 1.9L12 16.4l-1.9-4.8L5.3 9.7l4.8-1.9z"/><path d="M19 14l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"/></svg>
                 </span>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: "14px", fontWeight: 800, letterSpacing: "-0.01em" }}>Ask your money coach</div>
-                  {showHints && <div style={{ fontSize: "12px", opacity: 0.95 }}>Get a personalized read on your finances</div>}
+                  {showHints && <div style={{ fontSize: "12px", color: C.sub }}>Get a personalized read on your finances</div>}
                 </div>
-                <span style={{ fontSize: "18px", opacity: 0.9 }}>→</span>
+                <span style={{ fontSize: "18px", color: C.sub }}>→</span>
               </button>
             ),
             goals: goals.length > 0 ? (
@@ -1116,7 +1115,7 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
             <>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
                 {dashEdit ? <span style={{ fontSize: "12px", color: C.hint }}>Reorder or hide your widgets.</span> : <span />}
-                <button data-tour="customize" onClick={() => setDashEdit(e => !e)} style={{ padding: "7px 15px", borderRadius: "10px", border: "0.5px solid " + (dashEdit ? C.accent : C.border), background: dashEdit ? C.accent : C.surface, color: dashEdit ? "#fff" : C.sub, fontSize: "12px", fontWeight: 700, cursor: "pointer" }}>{dashEdit ? "✓ Done" : "✎ Customize"}</button>
+                <button data-tour="customize" onClick={() => setDashEdit(e => !e)} style={{ padding: "7px 15px", borderRadius: "10px", border: "0.5px solid " + (dashEdit ? C.accent : C.border), background: dashEdit ? C.accent : C.surface, color: dashEdit ? C.onAccent : C.sub, fontSize: "12px", fontWeight: 700, cursor: "pointer" }}>{dashEdit ? "✓ Done" : "✎ Customize"}</button>
               </div>
 
               {subTracking && dueCharges.length > 0 && !dashEdit && (
@@ -1128,7 +1127,7 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
                       <span style={{ color: C.down, fontWeight: 600 }}>−{fmt(c.amount)}</span>
                     </div>
                   ))}
-                  <button onClick={logDueCharges} style={{ width: "100%", marginTop: "10px", padding: "11px", borderRadius: "10px", border: "none", background: C.accent, color: "#fff", fontWeight: 700, fontSize: "13px", cursor: "pointer" }}>
+                  <button onClick={logDueCharges} style={{ width: "100%", marginTop: "10px", padding: "11px", borderRadius: "10px", border: "none", background: C.accent, color: C.onAccent, fontWeight: 700, fontSize: "13px", cursor: "pointer" }}>
                     Log {dueCharges.length} charge{dueCharges.length > 1 ? "s" : ""}
                   </button>
                 </Card>
@@ -1328,11 +1327,11 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
 
           <button onClick={() => { setMonthly(Math.round(investable)); setRate(Math.min(20, Math.max(1, Math.round(blendedRet * 2) / 2))); setTab("tools"); setToolView("grow"); }} style={{
             width: "100%", marginTop: "10px", padding: "13px", borderRadius: "12px", border: "none",
-            background: C.accent, color: "#fff", fontWeight: 700, fontSize: "14px", cursor: "pointer",
+            background: C.accent, color: C.onAccent, fontWeight: 700, fontSize: "14px", cursor: "pointer",
             letterSpacing: "-0.01em", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px",
           }}>
             See {fmt(investable)}/mo grow at {blendedRet.toFixed(1)}%
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={C.onAccent} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
           </button>
         </>}
 
@@ -1380,7 +1379,7 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
                     padding: "5px 12px", borderRadius: "7px", border: "none", cursor: "pointer", fontSize: "12px",
                     fontWeight: msView === id ? 700 : 500,
                     background: msView === id ? C.accent : "transparent",
-                    color: msView === id ? "#fff" : C.sub,
+                    color: msView === id ? C.onAccent : C.sub,
                   }}>{lbl}</button>
                 ))}
               </div>
@@ -1457,7 +1456,7 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
                 <div style={{ fontSize: "13px", fontWeight: 700, color: C.text }}>Track on calendar</div>
                 {showHints && <div style={{ fontSize: "11px", color: C.hint, marginTop: "2px" }}>Show due charges on your dashboard & calendar.</div>}
               </div>
-              <button role="switch" aria-checked={subTracking} onClick={() => setSubTracking(v => !v)} style={{ width: 46, height: 28, borderRadius: "999px", border: "none", cursor: "pointer", flexShrink: 0, background: subTracking ? C.accent : C.border, position: "relative", transition: "background .2s" }}>
+              <button role="switch" aria-checked={subTracking} onClick={() => setSubTracking(v => !v)} style={{ width: 46, height: 28, borderRadius: "999px", border: "none", cursor: "pointer", flexShrink: 0, background: subTracking ? C.up : C.border, position: "relative", transition: "background .2s" }}>
                 <span style={{ position: "absolute", top: 3, left: subTracking ? 21 : 3, width: 22, height: 22, borderRadius: "50%", background: "#fff", transition: "left .2s" }} />
               </button>
             </div>
@@ -1730,7 +1729,7 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
                   <div style={{ fontSize: "11px", color: C.hint, marginBottom: "4px" }}>Note <span style={{ color: C.hint }}>(optional)</span></div>
                   <input type="text" placeholder="e.g. Monthly VUAA buy" value={logNote} onChange={e => setLogNote(e.target.value)} aria-label="Transaction note" style={inputStyle} />
                 </div>
-                <button onClick={() => { if (parseFloat(logAmount) > 0) { addEntry(); setLogAddOpen(false); } }} style={{ width: "100%", padding: "13px", borderRadius: "12px", border: "none", background: C.accent, color: "#fff", fontWeight: 700, fontSize: "14px", cursor: "pointer", letterSpacing: "-0.01em" }}>
+                <button onClick={() => { if (parseFloat(logAmount) > 0) { addEntry(); setLogAddOpen(false); } }} style={{ width: "100%", padding: "13px", borderRadius: "12px", border: "none", background: C.accent, color: C.onAccent, fontWeight: 700, fontSize: "14px", cursor: "pointer", letterSpacing: "-0.01em" }}>
                   Save transaction
                 </button>
               </Card>
@@ -1882,38 +1881,6 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
                   );
                 })}
               </div>
-              <div style={{ marginBottom: "16px" }}>
-                <button onClick={() => setAccentOpen(o => !o)} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", padding: "12px 14px", borderRadius: "12px", border: "0.5px solid " + C.border, background: C.surface, cursor: "pointer", textAlign: "left" }}>
-                  <span style={{ display: "flex", alignItems: "center", gap: "11px", minWidth: 0 }}>
-                    <span style={{ width: 22, height: 22, borderRadius: "50%", flexShrink: 0, background: C.accentGrad, boxShadow: C.glow }} />
-                    <span>
-                      <span style={{ display: "block", fontSize: "13px", fontWeight: 600, color: C.text }}>Accent color</span>
-                      {showHints && <span style={{ display: "block", fontSize: "11px", color: C.hint, marginTop: "1px" }}>{theme?.accent === "custom" ? "Custom" : (theme?.accent || "blue").replace(/^\w/, c => c.toUpperCase())} · tap to change</span>}
-                    </span>
-                  </span>
-                  <span style={{ color: C.hint, fontSize: "15px", transform: accentOpen ? "rotate(90deg)" : "none", transition: "transform .2s" }}>›</span>
-                </button>
-                {accentOpen && (
-                  <div className="ffade" style={{ display: "flex", flexWrap: "wrap", gap: "12px", padding: "14px 2px 2px" }}>
-                    {ACCENTS.map(a => {
-                      const on = (theme?.accent || "blue") === a.key;
-                      return <button key={a.key} aria-label={a.key} onClick={() => setTheme && setTheme({ accent: a.key })} style={{ width: 38, height: 38, borderRadius: "50%", cursor: "pointer", background: a.accent, border: on ? "2px solid " + C.text : "2px solid transparent", boxShadow: on ? "0 0 0 2px " + C.bg + " inset" : "none" }} />;
-                    })}
-                    {(() => {
-                      const on = theme?.accent === "custom";
-                      return (
-                        <label title="Custom color" style={{ position: "relative", width: 38, height: 38, borderRadius: "50%", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
-                          background: "conic-gradient(from 90deg, #f0565b, #f0a23c, #f5b63d, #93d13a, #3dd68c, #2fbed6, #38bdf8, #5b7fff, #a06bff, #e35bf0, #f0609a, #f0565b)",
-                          border: on ? "2px solid " + C.text : "2px solid transparent", boxShadow: on ? "0 0 0 2px " + C.bg + " inset" : "none" }}>
-                          <input type="color" value={theme?.customAccent || C.accent} onChange={e => setTheme && setTheme({ accent: "custom", customAccent: e.target.value })}
-                            aria-label="Custom accent color" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0, cursor: "pointer", border: "none", padding: 0 }} />
-                          {on && <span style={{ width: 16, height: 16, borderRadius: "50%", background: theme?.customAccent || C.accent, border: "2px solid #fff", boxShadow: "0 1px 3px rgba(0,0,0,0.4)" }} />}
-                        </label>
-                      );
-                    })()}
-                  </div>
-                )}
-              </div>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px", paddingTop: "14px", borderTop: "0.5px solid " + C.border }}>
                 <div style={{ minWidth: 0 }}>
                   <div style={{ fontSize: "13px", fontWeight: 600, color: C.text }}>Helper texts</div>
@@ -1924,7 +1891,7 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
                   aria-checked={showHints}
                   aria-label="Toggle helper texts"
                   onClick={() => setTheme && setTheme({ showHints: !showHints })}
-                  style={{ flexShrink: 0, width: 46, height: 28, borderRadius: "999px", border: "none", cursor: "pointer", padding: 0, position: "relative", background: showHints ? C.accent : C.border, transition: "background .2s" }}
+                  style={{ flexShrink: 0, width: 46, height: 28, borderRadius: "999px", border: "none", cursor: "pointer", padding: 0, position: "relative", background: showHints ? C.up : C.border, transition: "background .2s" }}
                 >
                   <span style={{ position: "absolute", top: 3, left: showHints ? 21 : 3, width: 22, height: 22, borderRadius: "50%", background: "#fff", boxShadow: "0 1px 3px rgba(0,0,0,0.3)", transition: "left .2s" }} />
                 </button>
@@ -1973,7 +1940,7 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
               </div>
               <div style={{ fontSize: "13px", color: C.sub, lineHeight: 1.6 }}>Folio Pro is on the way — unlocking advanced tools, bank connections and more. You'll be able to upgrade right here.</div>
             </Card>
-            <button disabled style={{ width: "100%", padding: "13px", borderRadius: "12px", border: "none", background: C.accent, color: "#fff", fontWeight: 700, fontSize: "14px", opacity: 0.5, cursor: "default" }}>Upgrade to Pro — coming soon</button>
+            <button disabled style={{ width: "100%", padding: "13px", borderRadius: "12px", border: "none", background: C.accent, color: C.onAccent, fontWeight: 700, fontSize: "14px", opacity: 0.5, cursor: "default" }}>Upgrade to Pro — coming soon</button>
           </>}
 
           {moreView === "notifications" && <>
@@ -1992,10 +1959,10 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
             const goalsDone = goals.filter(g => (g.saved || 0) >= (g.target || 0) && (g.target || 0) > 0).length;
             return <>
               <BackBar title="Your stats" onBack={() => setMoreView("menu")} />
-              <Card style={{ background: C.accentGrad, border: "none", color: "#fff" }}>
-                <div style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", opacity: 0.85 }}>Time in Folio</div>
-                <div className="tnum" style={{ fontSize: "34px", fontWeight: 800, letterSpacing: "-0.03em", marginTop: "4px" }}>{fmtDuration(u.seconds)}</div>
-                <div style={{ fontSize: "12px", opacity: 0.9, marginTop: "2px" }}>Across {u.sessions} session{u.sessions === 1 ? "" : "s"} · since {since}</div>
+              <Card>
+                <div style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: C.hint }}>Time in Folio</div>
+                <div className="tnum" style={{ fontSize: "34px", fontWeight: 800, letterSpacing: "-0.03em", marginTop: "4px", color: C.text }}>{fmtDuration(u.seconds)}</div>
+                <div style={{ fontSize: "12px", color: C.sub, marginTop: "2px" }}>Across {u.sessions} session{u.sessions === 1 ? "" : "s"} · since {since}</div>
               </Card>
               <Label text="Your journey" hint="The fun numbers behind your money." />
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: "8px", marginBottom: "10px" }}>

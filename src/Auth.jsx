@@ -56,7 +56,7 @@ export default function Auth() {
       <div style={{ width: "100%", maxWidth: 380 }}>
         <div style={{ display: "flex", alignItems: "center", gap: "11px", justifyContent: "center", marginBottom: "26px" }}>
           <div style={{ width: 40, height: 40, borderRadius: "13px", background: C.accentGrad, boxShadow: C.glow + ", " + C.hi, display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>
+            <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke={C.onAccent} strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>
           </div>
           <div style={{ fontSize: "23px", fontWeight: 800, letterSpacing: "-0.03em" }}>Folio</div>
         </div>
@@ -72,7 +72,7 @@ export default function Auth() {
             {err && <div style={{ fontSize: "12px", color: C.down, marginBottom: "10px" }}>{err}</div>}
             {msg && <div style={{ fontSize: "12px", color: C.up, marginBottom: "10px" }}>{msg}</div>}
 
-            <button type="submit" disabled={busy} style={{ width: "100%", padding: "14px", borderRadius: "13px", border: "none", background: C.accentGrad, boxShadow: busy ? "none" : C.glow, color: "#fff", fontWeight: 700, fontSize: "14px", cursor: busy ? "default" : "pointer", opacity: busy ? 0.6 : 1 }}>
+            <button type="submit" disabled={busy} style={{ width: "100%", padding: "14px", borderRadius: "13px", border: "none", background: C.accentGrad, boxShadow: busy ? "none" : C.glow, color: C.onAccent, fontWeight: 700, fontSize: "14px", cursor: busy ? "default" : "pointer", opacity: busy ? 0.6 : 1 }}>
               {busy ? "Please wait…" : mode === "login" ? "Log in" : "Sign up"}
             </button>
           </form>

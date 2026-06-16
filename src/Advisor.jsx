@@ -80,14 +80,14 @@ export default function Advisor({ data }) {
   return (
     <>
       {/* Hero */}
-      <div style={{ ...card, background: accentGrad, border: "none", color: "#fff", position: "relative", overflow: "hidden" }}>
+      <div style={{ ...card }}>
         <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "8px" }}>
-          <span style={{ width: 34, height: 34, borderRadius: "10px", background: "rgba(255,255,255,0.18)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <Sparkle size={18} />
+          <span style={{ width: 34, height: 34, borderRadius: "10px", background: C.accent, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <Sparkle size={18} color={C.onAccent} />
           </span>
-          <div style={{ fontSize: "16px", fontWeight: 800, letterSpacing: "-0.01em" }}>Your money coach</div>
+          <div style={{ fontSize: "16px", fontWeight: 800, letterSpacing: "-0.01em", color: C.text }}>Your money coach</div>
         </div>
-        <div style={{ fontSize: "13px", lineHeight: 1.5, opacity: 0.95 }}>{headline}</div>
+        <div style={{ fontSize: "13px", lineHeight: 1.5, color: C.sub }}>{headline}</div>
       </div>
 
       {/* Instant, on-device insights */}
@@ -106,12 +106,12 @@ export default function Advisor({ data }) {
             </div>
             <button onClick={runAI} disabled={status === "loading"} style={{
               width: "100%", padding: "13px", borderRadius: "12px", border: "none", background: status === "loading" ? C.surface : accentGrad,
-              color: status === "loading" ? C.sub : "#fff", fontWeight: 700, fontSize: "14px", cursor: status === "loading" ? "default" : "pointer",
+              color: status === "loading" ? C.sub : C.onAccent, fontWeight: 700, fontSize: "14px", cursor: status === "loading" ? "default" : "pointer",
               display: "flex", alignItems: "center", justifyContent: "center", gap: "8px",
             }}>
               {status === "loading"
                 ? <><span className="fspin" style={{ width: 16, height: 16, borderRadius: "50%", border: "2px solid " + C.border, borderTopColor: C.sub, display: "inline-block" }} /> Analyzing your finances…</>
-                : <><Sparkle size={16} color="#fff" /> Get my AI analysis</>}
+                : <><Sparkle size={16} color={C.onAccent} /> Get my AI analysis</>}
             </button>
           </>
         )}

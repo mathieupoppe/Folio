@@ -46,7 +46,7 @@ export default class ErrorBoundary extends Component {
               borderRadius: "12px",
               border: "none",
               background: C.accent,
-              color: "#fff",
+              color: C.onAccent,
               fontWeight: 700,
               fontSize: "14px",
               cursor: "pointer",
