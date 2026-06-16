@@ -7,7 +7,7 @@ import {
   sumAmount,
   subsMonthly as subsMonthlyLib,
   computeHealth,
-  healthBandLabel,
+  healthBand as computeHealthBand,
   NW_MILESTONES,
   milestoneProgress,
   dueSubscriptionCharges,
@@ -870,7 +870,8 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
 
   // financial health score (0-100): four pillars of 25 — computed in ./lib/finance
   const { score: healthScore, pillars: healthPillars } = computeHealth({ spendPct, spendMoney, totalAssets, totalLiab, investBuckets });
-  const healthBand = healthScore >= 80 ? { c: C.up, t: "Excellent" } : healthScore >= 60 ? { c: C.up, t: "Healthy" } : healthScore >= 40 ? { c: C.accent, t: healthBandLabel(healthScore) } : { c: C.down, t: healthBandLabel(healthScore) };
+  const _band = computeHealthBand(healthScore, healthPillars);
+  const healthBand = { c: _band.tone === "good" ? C.up : _band.tone === "watch" ? C.warn : C.down, t: _band.label };
 
   // net worth milestones
   const { next: nextMilestone, last: lastMilestone, pct: milestonePct } = milestoneProgress(netWorth, NW_MILESTONES);

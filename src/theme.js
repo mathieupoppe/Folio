@@ -73,7 +73,7 @@ export const LANGUAGES = [
 // onAccent = text/icon color that sits ON an accent fill (black on the white
 // dark-mode accent, white on the black light-mode accent).
 export const C = {
-  up: "#30d158", down: "#ff453a",
+  up: "#30d158", down: "#ff453a", warn: "#f5a623",
   ...DARK, accent: "#f5f5f7", accentD: "#d4d4d8", onAccent: "#000000",
   cardGrad: "", accentGrad: "", glow: "", bgGlow: "",
 };

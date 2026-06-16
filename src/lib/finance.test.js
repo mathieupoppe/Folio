@@ -6,6 +6,7 @@ import {
   subsMonthly,
   computeHealth,
   healthBandLabel,
+  healthBand,
   milestoneProgress,
   clampNumber,
   dueSubscriptionCharges,
@@ -77,6 +78,23 @@ describe("healthBandLabel", () => {
     expect(healthBandLabel(65)).toBe("Healthy");
     expect(healthBandLabel(45)).toBe("Okay");
     expect(healthBandLabel(10)).toBe("Needs work");
+  });
+});
+
+describe("healthBand", () => {
+  const ok = { key: "emergency", score: 20 };
+  const empty = { key: "emergency", score: 0 };
+  it("is Healthy with a good score and a real cushion", () => {
+    expect(healthBand(68, [ok])).toEqual({ label: "Healthy", tone: "good" });
+  });
+  it("caps a high score to Okay/watch when the emergency fund is empty", () => {
+    expect(healthBand(68, [empty])).toEqual({ label: "Okay", tone: "watch" });
+  });
+  it("caps Excellent too when there is no safety net", () => {
+    expect(healthBand(85, [empty]).tone).toBe("watch");
+  });
+  it("low scores stay Needs work regardless", () => {
+    expect(healthBand(30, [ok])).toEqual({ label: "Needs work", tone: "bad" });
   });
 });
 

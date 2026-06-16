@@ -62,6 +62,24 @@ export function computeHealth({ spendPct, spendMoney, totalAssets, totalLiab, in
 export const healthBandLabel = score =>
   score >= 80 ? "Excellent" : score >= 60 ? "Healthy" : score >= 40 ? "Okay" : "Needs work";
 
+// Overall band from score + pillars. A failing *critical* pillar (the emergency
+// fund) caps the label — you shouldn't read "Healthy" with almost no safety net.
+// tone: "good" (green) | "watch" (amber) | "bad" (red).
+export function healthBand(score, pillars = []) {
+  const emergency = pillars.find(p => p.key === "emergency");
+  const emergencyFailing = !!emergency && emergency.score < 10; // under ~2 months of spending
+
+  let label, tone;
+  if (score >= 80) { label = "Excellent"; tone = "good"; }
+  else if (score >= 60) { label = "Healthy"; tone = "good"; }
+  else if (score >= 40) { label = "Okay"; tone = "watch"; }
+  else { label = "Needs work"; tone = "bad"; }
+
+  // Can't be "good" without a safety net — cap to the in-between band.
+  if (emergencyFailing && tone === "good") { label = "Okay"; tone = "watch"; }
+  return { label, tone };
+}
+
 export const NW_MILESTONES = [1000, 5000, 10000, 25000, 50000, 100000, 250000, 500000, 1000000];
 
 // Progress toward the next net-worth milestone.
