@@ -51,7 +51,9 @@
       "Bash(git commit -q -m 'Design overhaul: monochrome getquin-style black & white look *)",
       "Bash(git commit -q -m 'Add live watchlist \\(CoinGecko crypto + commodities\\) *)",
       "Bash(git commit -q -m 'Add compact Watchlist widget to the Home dashboard *)",
-      "Bash(git commit -q -m 'Cap financial-health band when emergency fund is missing *)"
+      "Bash(git commit -q -m 'Cap financial-health band when emergency fund is missing *)",
+      "Bash(perl -0pi -e 's/profile, dashOrder, dashHidden, subTracking, watchlist \\\\}, entries \\\\};/profile, dashOrder, dashHidden, subTracking, watchlist, holdings }, entries };/; s/profile, dashOrder, dashHidden, subTracking, watchlist, entries, userId, retryNonce\\\\]\\\\\\);/profile, dashOrder, dashHidden, subTracking, watchlist, holdings, entries, userId, retryNonce]\\);/' src/folio.jsx)",
+      "Bash(git commit -q -m 'Live holdings: portfolio value auto-flows into net worth \\(automation spine\\) *)"
     ]
   }
 }

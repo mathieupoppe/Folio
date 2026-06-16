@@ -14,6 +14,8 @@ import {
 } from "./lib/finance";
 import Advisor from "./Advisor";
 import Watchlist, { WatchlistWidget } from "./Watchlist";
+import HoldingsEditor from "./Holdings";
+import { fetchQuotes } from "./market";
 import Feedback from "./Feedback";
 import { GrowthChart, LogChart, NetWorthChart, Donut } from "./components/charts";
 
@@ -671,6 +673,8 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
   // net worth
   const [assets,      setAssets]      = useState(s0.assets      ?? []);
   const [liabilities, setLiabilities] = useState(s0.liabilities ?? []);
+  const [holdings,    setHoldings]    = useState(s0.holdings    ?? []); // [{ id, symbol, name, qty }] — live-valued
+  const [holdingsQuotes, setHoldingsQuotes] = useState([]);            // live prices for holdings (transient)
   const [nwHistory,   setNwHistory]   = useState(s0.nwHistory   ?? []); // [{date, value}] daily snapshots
   const [goals,       setGoals]       = useState(s0.goals       ?? []); // [{id, name, target, saved}]
   const [subs,        setSubs]        = useState(s0.subs        ?? []); // [{id, name, amount, cycle}]
@@ -715,6 +719,7 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
     if (st.years     != null) setYears(st.years);
     if (st.rate      != null) setRate(st.rate);
     if (Array.isArray(st.assets))      setAssets(st.assets);
+    if (Array.isArray(st.holdings))    setHoldings(st.holdings);
     if (Array.isArray(st.liabilities)) setLiabilities(st.liabilities);
     if (Array.isArray(st.nwHistory))   setNwHistory(st.nwHistory);
     if (Array.isArray(st.goals))       setGoals(st.goals);
@@ -748,7 +753,7 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
 
   // local cache always; debounced, conflict-aware cloud save once hydrated
   useEffect(() => {
-    const blob = { settings: { income, spendPct, investBuckets, spendBuckets, principal, monthly, years, rate, assets, liabilities, nwHistory, goals, subs, profile, dashOrder, dashHidden, subTracking, watchlist }, entries };
+    const blob = { settings: { income, spendPct, investBuckets, spendBuckets, principal, monthly, years, rate, assets, liabilities, nwHistory, goals, subs, profile, dashOrder, dashHidden, subTracking, watchlist, holdings }, entries };
     try { localStorage.setItem(LOCAL_KEY, JSON.stringify(blob)); }
     catch (e) { console.warn("Folio: couldn't save to local storage —", e?.message || e); }
     if (!hydrated.current || !userId) return;
@@ -769,7 +774,7 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
       }).catch(() => setSync("error"));
     }, 800);
     return () => clearTimeout(t);
-  }, [income, spendPct, investBuckets, spendBuckets, principal, monthly, years, rate, assets, liabilities, nwHistory, goals, subs, profile, dashOrder, dashHidden, subTracking, watchlist, entries, userId, retryNonce]);
+  }, [income, spendPct, investBuckets, spendBuckets, principal, monthly, years, rate, assets, liabilities, nwHistory, goals, subs, profile, dashOrder, dashHidden, subTracking, watchlist, holdings, entries, userId, retryNonce]);
 
   const addEntry = () => {
     const amt = parseFloat(logAmount);
@@ -815,7 +820,7 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
   const exportData = () => {
     const data = {
       app: "folio", version: "0.5", exported: new Date().toISOString(),
-      settings: { income, spendPct, investBuckets, spendBuckets, principal, monthly, years, rate, assets, liabilities, nwHistory, goals, subs, profile },
+      settings: { income, spendPct, investBuckets, spendBuckets, principal, monthly, years, rate, assets, liabilities, nwHistory, goals, subs, profile, holdings },
       entries,
     };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
@@ -864,7 +869,12 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
   const totalDep  = entries.filter(e => e.type === "deposit").reduce((s,e) => s + e.amount, 0);
   const totalWith = entries.filter(e => e.type === "withdrawal").reduce((s,e) => s + e.amount, 0);
 
-  const totalAssets = sumAmount(assets);
+  // Live portfolio value (qty × current price) — auto-flows into net worth.
+  const holdingsValue = holdings.reduce((s, h) => {
+    const q = holdingsQuotes.find(x => x.id === h.id);
+    return s + (q ? q.price * h.qty : 0);
+  }, 0);
+  const totalAssets = sumAmount(assets) + holdingsValue;
   const totalLiab   = sumAmount(liabilities);
   const netWorth    = totalAssets - totalLiab;
 
@@ -882,10 +892,24 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
     symbol: curSymbol(),
     income, spendPct, investBuckets, spendBuckets,
     assets, liabilities, goals, subs,
+    holdings: holdings.map(h => { const q = holdingsQuotes.find(x => x.id === h.id); return { symbol: h.symbol, qty: h.qty, value: q ? q.price * h.qty : null }; }),
+    holdingsValue,
     totalAssets, totalLiab, netWorth, healthScore,
     nwHistory: nwHistory.slice(-30),
     transactions: entries.length,
   };
+
+  // keep live prices for holdings fresh so net worth tracks the market
+  const holdingIds = holdings.map(h => h.id).sort().join(",");
+  useEffect(() => {
+    if (!holdingIds) { setHoldingsQuotes([]); return; }
+    let cancelled = false;
+    const ids = holdingIds.split(",");
+    const load = () => fetchQuotes(ids, theme?.currency || "EUR").then(q => { if (!cancelled) setHoldingsQuotes(q); }).catch(() => {});
+    load();
+    const t = setInterval(() => { if (typeof document === "undefined" || document.visibilityState === "visible") load(); }, 60000);
+    return () => { cancelled = true; clearInterval(t); };
+  }, [holdingIds, theme?.currency]);
 
   // record one net-worth snapshot per day so the Home graph can show growth over time
   useEffect(() => {
@@ -1195,7 +1219,11 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
             </Card>
           )}
           <Card>
-            <Label text="Assets" hint="Cash, investments, property — anything you own." />
+            <Label text="Investments (live)" hint={holdingsValue > 0 ? `Valued automatically from live prices · ${fmt(holdingsValue)}` : "Add crypto or commodities — valued automatically from live prices."} />
+            <HoldingsEditor holdings={holdings} setHoldings={setHoldings} quotes={holdingsQuotes} currency={theme?.currency || "EUR"} />
+          </Card>
+          <Card>
+            <Label text="Other assets" hint="Cash, property, manual investments — anything you own." />
             <MoneyItemList items={assets} setItems={setAssets} color={C.up} />
           </Card>
           <Card>
