@@ -54,7 +54,8 @@
       "Bash(git commit -q -m 'Cap financial-health band when emergency fund is missing *)",
       "Bash(perl -0pi -e 's/profile, dashOrder, dashHidden, subTracking, watchlist \\\\}, entries \\\\};/profile, dashOrder, dashHidden, subTracking, watchlist, holdings }, entries };/; s/profile, dashOrder, dashHidden, subTracking, watchlist, entries, userId, retryNonce\\\\]\\\\\\);/profile, dashOrder, dashHidden, subTracking, watchlist, holdings, entries, userId, retryNonce]\\);/' src/folio.jsx)",
       "Bash(git commit -q -m 'Live holdings: portfolio value auto-flows into net worth \\(automation spine\\) *)",
-      "Bash(git commit -q -m 'AI coach chat: conversational Q&A grounded in your snapshot *)"
+      "Bash(git commit -q -m 'AI coach chat: conversational Q&A grounded in your snapshot *)",
+      "Bash(supabase --version)"
     ]
   }
 }
