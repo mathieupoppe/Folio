@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { Analytics } from "@vercel/analytics/react";
 import { C, applyTheme, applyCurrency, loadTheme } from "./theme";
 import { supabase, isConfigured } from "./supabase";
 import Auth from "./Auth";
@@ -65,5 +66,10 @@ export default function App() {
     await supabase.auth.signOut();
   };
 
-  return <Folio session={session} onSignOut={() => supabase.auth.signOut()} onDeleteAccount={deleteAccount} theme={theme} setTheme={setTheme} />;
+  return (
+    <>
+      <Folio session={session} onSignOut={() => supabase.auth.signOut()} onDeleteAccount={deleteAccount} theme={theme} setTheme={setTheme} />
+      <Analytics />
+    </>
+  );
 }
