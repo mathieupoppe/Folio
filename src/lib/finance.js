@@ -111,6 +111,39 @@ export function dueSubscriptionCharges(subs, entries, today = new Date()) {
   return out;
 }
 
+// Simulate clearing debts with a fixed total monthly budget.
+// debts: [{ id, name, balance, apr (annual %), min (min monthly payment) }]
+// budget: total €/mo for all debts together. strategy: "avalanche" (highest APR
+// first) or "snowball" (smallest balance first). Pays every minimum, then funnels
+// the rest to the priority debt; freed-up minimums cascade as debts clear.
+export function debtPayoff(debts, budget, strategy = "avalanche") {
+  const list = (debts || [])
+    .filter(d => (d.balance || 0) > 0)
+    .map(d => ({ id: d.id, name: d.name, bal: d.balance, r: (d.apr || 0) / 100 / 12, min: Math.max(0, d.min || 0) }));
+  if (!list.length) return { months: 0, totalInterest: 0, totalPaid: 0, payoffOrder: [], feasible: true };
+
+  const minSum = list.reduce((s, d) => s + Math.min(d.min, d.bal), 0);
+  if (budget < minSum - 0.005) return { months: Infinity, totalInterest: Infinity, totalPaid: Infinity, payoffOrder: [], feasible: false };
+
+  const prioritize = arr => [...arr].sort(strategy === "snowball" ? (a, b) => a.bal - b.bal : (a, b) => b.r - a.r);
+  let month = 0, totalInterest = 0, totalPaid = 0;
+  const payoffOrder = [];
+  const GUARD = 1200; // 100-year safety cap
+
+  while (list.some(d => d.bal > 0.005) && month < GUARD) {
+    month++;
+    for (const d of list) if (d.bal > 0) { const i = d.bal * d.r; d.bal += i; totalInterest += i; }
+    let pool = budget;
+    for (const d of list) if (d.bal > 0) { const p = Math.min(d.min, d.bal, pool); d.bal -= p; pool -= p; totalPaid += p; }
+    for (const d of prioritize(list)) {
+      if (pool <= 0.005) break;
+      if (d.bal > 0) { const p = Math.min(d.bal, pool); d.bal -= p; pool -= p; totalPaid += p; }
+    }
+    for (const d of list) if (d.bal <= 0.005 && !payoffOrder.find(x => x.id === d.id)) payoffOrder.push({ id: d.id, name: d.name, month });
+  }
+  return { months: month, totalInterest: Math.round(totalInterest), totalPaid: Math.round(totalPaid), payoffOrder, feasible: month < GUARD };
+}
+
 // Clamp a numeric input to a sane range; returns fallback for non-numbers.
 export function clampNumber(value, { min = -Infinity, max = Infinity, fallback = 0 } = {}) {
   const n = typeof value === "number" ? value : parseFloat(value);

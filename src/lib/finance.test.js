@@ -10,6 +10,7 @@ import {
   milestoneProgress,
   clampNumber,
   dueSubscriptionCharges,
+  debtPayoff,
 } from "./finance";
 
 describe("calcGrowth", () => {
@@ -124,6 +125,34 @@ describe("dueSubscriptionCharges", () => {
   });
   it("skips yearly subscriptions", () => {
     expect(dueSubscriptionCharges([{ id: "s1", name: "X", amount: 99, cycle: "yearly", day: 1 }], [], today)).toHaveLength(0);
+  });
+});
+
+describe("debtPayoff", () => {
+  const debts = [
+    { id: "a", name: "Card", balance: 2000, apr: 22, min: 50 },
+    { id: "b", name: "Loan", balance: 5000, apr: 6, min: 100 },
+  ];
+  it("clears all debts in finite time with adequate budget", () => {
+    const r = debtPayoff(debts, 400, "avalanche");
+    expect(r.feasible).toBe(true);
+    expect(r.months).toBeGreaterThan(0);
+    expect(r.payoffOrder).toHaveLength(2);
+  });
+  it("avalanche costs no more interest than snowball", () => {
+    const av = debtPayoff(debts, 400, "avalanche");
+    const sn = debtPayoff(debts, 400, "snowball");
+    expect(av.totalInterest).toBeLessThanOrEqual(sn.totalInterest);
+  });
+  it("snowball clears the smallest balance first", () => {
+    const r = debtPayoff(debts, 400, "snowball");
+    expect(r.payoffOrder[0].id).toBe("a"); // Card (2000) before Loan (5000)
+  });
+  it("is infeasible when the budget can't cover minimums", () => {
+    expect(debtPayoff(debts, 100).feasible).toBe(false);
+  });
+  it("handles no debts", () => {
+    expect(debtPayoff([], 200).months).toBe(0);
   });
 });
 

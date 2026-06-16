@@ -16,6 +16,9 @@ import Advisor from "./Advisor";
 import Watchlist, { WatchlistWidget } from "./Watchlist";
 import HoldingsEditor from "./Holdings";
 import BudgetTool, { budgetPeriod } from "./Budget";
+import DebtsTool from "./Debts";
+import { currentStreak, computeAchievements } from "./lib/achievements";
+import { exportTransactionsCSV, openPrintableReport } from "./reports";
 import { fetchQuotes } from "./market";
 import Feedback from "./Feedback";
 import { GrowthChart, LogChart, NetWorthChart, Donut } from "./components/charts";
@@ -677,6 +680,9 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
   const [liabilities, setLiabilities] = useState(s0.liabilities ?? []);
   const [holdings,    setHoldings]    = useState(s0.holdings    ?? []); // [{ id, symbol, name, qty }] — live-valued
   const [budget,      setBudget]      = useState(s0.budget      ?? { period: "", spent: {} }); // monthly spend-vs-plan
+  const [debts,        setDebts]        = useState(s0.debts        ?? []); // [{ id, name, balance, apr, min }]
+  const [debtBudget,   setDebtBudget]   = useState(s0.debtBudget   ?? "");
+  const [debtStrategy, setDebtStrategy] = useState(s0.debtStrategy ?? "avalanche");
   const [holdingsQuotes, setHoldingsQuotes] = useState([]);            // live prices for holdings (transient)
   const [nwHistory,   setNwHistory]   = useState(s0.nwHistory   ?? []); // [{date, value}] daily snapshots
   const [goals,       setGoals]       = useState(s0.goals       ?? []); // [{id, name, target, saved}]
@@ -724,6 +730,9 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
     if (Array.isArray(st.assets))      setAssets(st.assets);
     if (Array.isArray(st.holdings))    setHoldings(st.holdings);
     if (st.budget && typeof st.budget === "object") setBudget(st.budget);
+    if (Array.isArray(st.debts)) setDebts(st.debts);
+    if (st.debtBudget != null) setDebtBudget(st.debtBudget);
+    if (st.debtStrategy) setDebtStrategy(st.debtStrategy);
     if (Array.isArray(st.liabilities)) setLiabilities(st.liabilities);
     if (Array.isArray(st.nwHistory))   setNwHistory(st.nwHistory);
     if (Array.isArray(st.goals))       setGoals(st.goals);
@@ -757,7 +766,7 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
 
   // local cache always; debounced, conflict-aware cloud save once hydrated
   useEffect(() => {
-    const blob = { settings: { income, spendPct, investBuckets, spendBuckets, principal, monthly, years, rate, assets, liabilities, nwHistory, goals, subs, profile, dashOrder, dashHidden, subTracking, watchlist, holdings, budget }, entries };
+    const blob = { settings: { income, spendPct, investBuckets, spendBuckets, principal, monthly, years, rate, assets, liabilities, nwHistory, goals, subs, profile, dashOrder, dashHidden, subTracking, watchlist, holdings, budget, debts, debtBudget, debtStrategy }, entries };
     try { localStorage.setItem(LOCAL_KEY, JSON.stringify(blob)); }
     catch (e) { console.warn("Folio: couldn't save to local storage —", e?.message || e); }
     if (!hydrated.current || !userId) return;
@@ -778,7 +787,7 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
       }).catch(() => setSync("error"));
     }, 800);
     return () => clearTimeout(t);
-  }, [income, spendPct, investBuckets, spendBuckets, principal, monthly, years, rate, assets, liabilities, nwHistory, goals, subs, profile, dashOrder, dashHidden, subTracking, watchlist, holdings, budget, entries, userId, retryNonce]);
+  }, [income, spendPct, investBuckets, spendBuckets, principal, monthly, years, rate, assets, liabilities, nwHistory, goals, subs, profile, dashOrder, dashHidden, subTracking, watchlist, holdings, budget, debts, debtBudget, debtStrategy, entries, userId, retryNonce]);
 
   const addEntry = () => {
     const amt = parseFloat(logAmount);
@@ -812,8 +821,6 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
   const subsMonthly = subsMonthlyLib(subs);
 
   // debt payoff calculator inputs
-  const [debtPay, setDebtPay] = useState("");
-  const [debtRate, setDebtRate] = useState("");
   // emergency fund + FIRE inputs
   const [emMonths, setEmMonths] = useState(6);
   const [emSaved, setEmSaved] = useState("");
@@ -1549,39 +1556,10 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
         </>}
 
         {/* ── DEBT PAYOFF (Tools) ── */}
-        {tab === "tools" && toolView === "debt" && (() => {
-          const bal = totalLiab;
-          const pay = parseFloat(debtPay) || 0;
-          const r = (parseFloat(debtRate) || 0) / 100 / 12;
-          let months = 0, ok = false;
-          if (bal > 0 && pay > 0) {
-            if (pay > bal * r) {
-              months = r > 0 ? Math.ceil(Math.log(pay / (pay - bal * r)) / Math.log(1 + r)) : Math.ceil(bal / pay);
-              ok = true;
-            }
-          }
-          const totalPaid = ok ? pay * months : 0;
-          return <>
-            <BackBar title="Debt payoff" onBack={() => setToolView("menu")} />
-            <Card>
-              <Label text="Your debt" hint="Total comes from your Liabilities in Net worth." />
-              <div style={{ fontSize: "26px", fontWeight: 800, color: bal > 0 ? C.down : C.up }}>{fmt(bal)}</div>
-              {bal === 0 && <div style={{ fontSize: "12px", color: C.hint, marginTop: "4px" }}>No liabilities logged — add them under Home → Manage.</div>}
-            </Card>
-            <Card>
-              <Label text="Your plan" hint="How much you'll pay and the interest rate." />
-              <div style={{ fontSize: "11px", color: C.hint, marginBottom: "4px" }}>Monthly payment ({curSymbol()})</div>
-              <input type="number" placeholder="e.g. 300" value={debtPay} onChange={e => setDebtPay(e.target.value)} style={{ ...inputStyle, marginBottom: "8px" }} />
-              <div style={{ fontSize: "11px", color: C.hint, marginBottom: "4px" }}>Interest rate (% / year)</div>
-              <input type="number" placeholder="e.g. 7" value={debtRate} onChange={e => setDebtRate(e.target.value)} style={inputStyle} />
-            </Card>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: "8px" }}>
-              <Metric label="Debt-free in" value={ok ? (months >= 12 ? `${Math.floor(months/12)}y ${months%12}m` : `${months} mo`) : "—"} desc={ok ? "At this pace" : "Raise your payment"} positive={ok} />
-              <Metric label="Total paid" value={ok ? fmtK(totalPaid) : "—"} desc={ok ? `${fmtK(totalPaid - bal)} interest` : "—"} positive={false} />
-            </div>
-            {bal > 0 && pay > 0 && !ok && <div style={{ fontSize: "12px", color: C.down, textAlign: "center", padding: "8px 0" }}>Your payment is too low to cover the interest — increase it.</div>}
-          </>;
-        })()}
+        {tab === "tools" && toolView === "debt" && <>
+          <BackBar title="Debt payoff" onBack={() => setToolView("menu")} />
+          <DebtsTool debts={debts} setDebts={setDebts} budget={debtBudget} setBudget={setDebtBudget} strategy={debtStrategy} setStrategy={setDebtStrategy} currency={theme?.currency || "EUR"} showHints={showHints} />
+        </>}
 
         {/* ── SAVINGS RATE (Tools) ── */}
         {tab === "tools" && toolView === "savings" && (() => {
@@ -1974,8 +1952,15 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
             <Card>
               <Label text="Backup" hint={userId ? "Your data syncs to your account. Export a file copy too." : "Save a copy or restore from a file."} />
               <div style={{ display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: "8px" }}>
-                <button onClick={exportData} style={{ padding: "11px", borderRadius: "10px", cursor: "pointer", fontWeight: 600, fontSize: "13px", border: "0.5px solid " + C.border, background: C.surface, color: C.text }}>↓ Export</button>
+                <button onClick={exportData} style={{ padding: "11px", borderRadius: "10px", cursor: "pointer", fontWeight: 600, fontSize: "13px", border: "0.5px solid " + C.border, background: C.surface, color: C.text }}>↓ Export (JSON)</button>
                 <button onClick={() => fileRef.current?.click()} style={{ padding: "11px", borderRadius: "10px", cursor: "pointer", fontWeight: 600, fontSize: "13px", border: "0.5px solid " + C.border, background: C.surface, color: C.text }}>↑ Import</button>
+              </div>
+            </Card>
+            <Card>
+              <Label text="Reports" hint="Export your transactions or save a summary as PDF." />
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: "8px" }}>
+                <button onClick={() => exportTransactionsCSV(entries)} style={{ padding: "11px", borderRadius: "10px", cursor: "pointer", fontWeight: 600, fontSize: "13px", border: "0.5px solid " + C.border, background: C.surface, color: C.text }}>↓ Transactions (CSV)</button>
+                <button onClick={() => { const ok = openPrintableReport({ currency: theme?.currency || "EUR", netWorth, totalAssets, totalLiab, income, investable, totalDep, totalWith, healthScore, healthLabel: healthBand.t, entries, budget: advisorData.budget }); if (!ok) window.alert("Allow pop-ups to generate the report."); }} style={{ padding: "11px", borderRadius: "10px", cursor: "pointer", fontWeight: 600, fontSize: "13px", border: "0.5px solid " + C.border, background: C.surface, color: C.text }}>🖨 Summary (PDF)</button>
               </div>
             </Card>
           </>}
@@ -2017,12 +2002,23 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
             const biggest = entries.reduce((m, e) => Math.max(m, e.amount || 0), 0);
             const avgTxn = entries.length ? (totalDep + totalWith) / entries.length : 0;
             const goalsDone = goals.filter(g => (g.saved || 0) >= (g.target || 0) && (g.target || 0) > 0).length;
+            const streak = currentStreak(u.days || []);
+            const achievements = computeAchievements({
+              transactions: entries.length, streak,
+              savingsRate: income > 0 ? (investable / income) * 100 : 0,
+              emergencyMonths: spendMoney > 0 ? totalAssets / spendMoney : 0,
+              holdings: holdings.length,
+              diversifiedCount: investBuckets.filter(b => (b.pct || 0) >= 10).length,
+              goalsReached: goalsDone, netWorth, healthScore,
+            });
+            const earnedCount = achievements.filter(a => a.earned).length;
             return <>
               <BackBar title="Your stats" onBack={() => setMoreView("menu")} />
               <Card>
                 <div style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: C.hint }}>Time in Folio</div>
                 <div className="tnum" style={{ fontSize: "34px", fontWeight: 800, letterSpacing: "-0.03em", marginTop: "4px", color: C.text }}>{fmtDuration(u.seconds)}</div>
                 <div style={{ fontSize: "12px", color: C.sub, marginTop: "2px" }}>Across {u.sessions} session{u.sessions === 1 ? "" : "s"} · since {since}</div>
+                {streak > 0 && <div style={{ marginTop: "10px", display: "inline-flex", alignItems: "center", gap: "6px", padding: "5px 11px", borderRadius: "999px", background: C.warn + "1e", color: C.warn, fontSize: "12px", fontWeight: 700 }}>🔥 {streak}-day streak</div>}
               </Card>
               <Label text="Your journey" hint="The fun numbers behind your money." />
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: "8px", marginBottom: "10px" }}>
@@ -2038,6 +2034,18 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
                 <Metric label="Subscriptions" value={subs.length} desc={`${fmt(subsMonthly)}/mo tracked`} positive={false} />
                 <Metric label="Health score" value={healthScore + "/100"} desc={healthBand.t} positive={healthScore >= 60} />
                 <Metric label="Savings rate" value={Math.round(income > 0 ? (investable / income) * 100 : 0) + "%"} desc="Of your income" positive={true} />
+              </div>
+              <Label text="Achievements" hint={`${earnedCount} of ${achievements.length} unlocked.`} />
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: "8px", marginBottom: "10px" }}>
+                {achievements.map(a => (
+                  <div key={a.id} style={{ display: "flex", alignItems: "center", gap: "10px", padding: "11px 12px", borderRadius: "13px", border: "0.5px solid " + C.border, background: a.earned ? C.cardGrad : "transparent", opacity: a.earned ? 1 : 0.5 }}>
+                    <span style={{ fontSize: "20px", filter: a.earned ? "none" : "grayscale(1)" }}>{a.icon}</span>
+                    <span style={{ minWidth: 0 }}>
+                      <span style={{ display: "block", fontSize: "13px", fontWeight: 700, color: C.text }}>{a.title}</span>
+                      <span style={{ display: "block", fontSize: "11px", color: C.hint }}>{a.earned ? a.desc : "🔒 " + a.desc}</span>
+                    </span>
+                  </div>
+                ))}
               </div>
               <div style={{ fontSize: "11px", color: C.hint, textAlign: "center", padding: "4px 0 6px" }}>Time is tracked on this device only and never leaves it.</div>
             </>;
