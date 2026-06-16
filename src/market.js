@@ -21,16 +21,24 @@ export const WATCH_ASSETS = [
   { id: "tether-gold",  name: "Gold (alt)",symbol: "XAUt", kind: "Commodity" },
 ];
 
+// Short-lived in-memory cache so rapid remounts (home widget ↔ full page) and
+// reloads reuse data instead of hammering CoinGecko's free rate limit.
+const _cache = new Map(); // key -> { t, data }
+const TTL = 30000;
+
 // Fetch live quotes (price, 24h % change, 7-day sparkline) for the given ids,
 // priced in the user's currency.
 export async function fetchQuotes(ids, vs = "eur") {
   if (!ids || ids.length === 0) return [];
+  const key = vs.toLowerCase() + "|" + [...ids].sort().join(",");
+  const hit = _cache.get(key);
+  if (hit && Date.now() - hit.t < TTL) return hit.data;
   const url = `https://api.coingecko.com/api/v3/coins/markets?vs_currency=${encodeURIComponent(vs.toLowerCase())}` +
     `&ids=${ids.join(",")}&sparkline=true&price_change_percentage=24h`;
   const r = await fetch(url);
   if (!r.ok) throw new Error(r.status === 429 ? "Rate limited — try again in a moment." : "Couldn't load prices.");
   const data = await r.json();
-  return data.map(d => ({
+  const result = data.map(d => ({
     id: d.id,
     name: d.name,
     symbol: (d.symbol || "").toUpperCase(),
@@ -39,4 +47,6 @@ export async function fetchQuotes(ids, vs = "eur") {
     spark: d.sparkline_in_7d?.price || [],
     image: d.image,
   }));
+  _cache.set(key, { t: Date.now(), data: result });
+  return result;
 }

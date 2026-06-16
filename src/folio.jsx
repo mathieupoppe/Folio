@@ -13,7 +13,7 @@ import {
   dueSubscriptionCharges,
 } from "./lib/finance";
 import Advisor from "./Advisor";
-import Watchlist from "./Watchlist";
+import Watchlist, { WatchlistWidget } from "./Watchlist";
 import Feedback from "./Feedback";
 import { GrowthChart, LogChart, NetWorthChart, Donut } from "./components/charts";
 
@@ -22,7 +22,7 @@ import { GrowthChart, LogChart, NetWorthChart, Donut } from "./components/charts
 const HintCtx = createContext(true);
 
 // Default dashboard widget order (users can reorder + hide in Edit mode).
-const DEFAULT_DASH = ["netWorth", "income", "stats", "health", "coach", "goals", "activity"];
+const DEFAULT_DASH = ["netWorth", "income", "stats", "health", "coach", "watchlist", "goals", "activity"];
 
 const SCENARIOS = [
   { label: "Conservative", rate: 7,  desc: "Slow decade" },
@@ -1058,6 +1058,9 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
                 <span style={{ fontSize: "18px", color: C.sub }}>→</span>
               </button>
             ),
+            watchlist: watchlist.length > 0 ? (
+              <WatchlistWidget ids={watchlist} currency={theme?.currency || "EUR"} onOpen={() => { setTab("tools"); setToolView("watchlist"); }} />
+            ) : null,
             goals: goals.length > 0 ? (
               <Card>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
@@ -1100,7 +1103,7 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
               </Card>
             ),
           };
-          const META = { netWorth: "Net worth", income: "Monthly income", stats: "Key stats", health: "Financial health", coach: "AI coach", goals: "Goals", activity: "Recent activity" };
+          const META = { netWorth: "Net worth", income: "Monthly income", stats: "Key stats", health: "Financial health", coach: "AI coach", watchlist: "Watchlist", goals: "Goals", activity: "Recent activity" };
           const SPAN = { netWorth: true, stats: true, coach: true, activity: true };
           const fullOrder = [...dashOrder.filter(id => DEFAULT_DASH.includes(id)), ...DEFAULT_DASH.filter(id => !dashOrder.includes(id))];
           const ordered = fullOrder.filter(id => W[id]); // only widgets that currently have content

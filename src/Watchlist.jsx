@@ -16,6 +16,67 @@ function Spark({ data, color, w = 70, h = 26 }) {
 
 const card = { background: C.card, borderRadius: "16px", border: "0.5px solid " + C.border, padding: "1rem 1.1rem", marginBottom: "10px" };
 
+function priceFmt(n, currency) {
+  if (n == null) return "—";
+  const digits = n >= 1000 ? 0 : n >= 1 ? 2 : 4;
+  try {
+    return new Intl.NumberFormat(undefined, { style: "currency", currency, maximumFractionDigits: digits, minimumFractionDigits: digits }).format(n);
+  } catch {
+    return n.toFixed(digits);
+  }
+}
+
+// Compact watchlist card for the Home dashboard — shows the top few, links out.
+export function WatchlistWidget({ ids = [], currency = "EUR", onOpen }) {
+  const [quotes, setQuotes] = useState([]);
+  const [status, setStatus] = useState("idle"); // idle | loading | done | error
+
+  const load = useCallback(async (soft) => {
+    if (!ids.length) { setQuotes([]); setStatus("done"); return; }
+    if (!soft) setStatus("loading");
+    try {
+      const q = await fetchQuotes(ids.slice(0, 4), currency);
+      q.sort((a, b) => ids.indexOf(a.id) - ids.indexOf(b.id));
+      setQuotes(q);
+      setStatus("done");
+    } catch {
+      setStatus("error");
+    }
+  }, [ids, currency]);
+
+  useEffect(() => { load(false); }, [load]);
+  useEffect(() => {
+    const t = setInterval(() => { if (document.visibilityState === "visible") load(true); }, 60000);
+    return () => clearInterval(t);
+  }, [load]);
+
+  return (
+    <div style={card}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
+        <div style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: C.hint }}>Watchlist</div>
+        <button onClick={onOpen} style={{ background: "none", border: "none", color: C.accent, fontSize: "12px", fontWeight: 600, cursor: "pointer" }}>View all →</button>
+      </div>
+      {ids.length === 0
+        ? <button onClick={onOpen} style={{ width: "100%", textAlign: "left", padding: "4px 0", background: "none", border: "none", cursor: "pointer", fontSize: "12px", color: C.hint }}>Nothing tracked yet — tap to add an asset.</button>
+        : ids.slice(0, 4).map((id, idx) => {
+            const q = quotes.find(x => x.id === id);
+            const up = (q?.change24h ?? 0) >= 0;
+            const col = up ? C.up : C.down;
+            return (
+              <div key={id} style={{ display: "flex", alignItems: "center", gap: "9px", padding: "8px 0", borderTop: idx === 0 ? "none" : "0.5px solid " + C.border }}>
+                {q?.image
+                  ? <img src={q.image} alt="" width="22" height="22" style={{ borderRadius: "50%", flexShrink: 0 }} />
+                  : <span style={{ width: 22, height: 22, borderRadius: "50%", background: C.surface, flexShrink: 0 }} />}
+                <div style={{ flex: 1, minWidth: 0, fontSize: "13px", fontWeight: 600, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{q?.symbol || ""}</div>
+                <div className="tnum" style={{ fontSize: "13px", fontWeight: 700, color: C.text }}>{q ? priceFmt(q.price, currency) : (status === "error" ? "—" : "…")}</div>
+                {q && <div className="tnum" style={{ fontSize: "12px", fontWeight: 600, color: col, minWidth: 56, textAlign: "right" }}>{up ? "▲" : "▼"} {Math.abs(q.change24h).toFixed(2)}%</div>}
+              </div>
+            );
+          })}
+    </div>
+  );
+}
+
 export default function Watchlist({ ids, setIds, currency = "EUR" }) {
   const [quotes, setQuotes] = useState([]);
   const [status, setStatus] = useState("idle"); // idle | loading | done | error
