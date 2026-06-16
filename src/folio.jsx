@@ -13,6 +13,7 @@ import {
   dueSubscriptionCharges,
 } from "./lib/finance";
 import Advisor from "./Advisor";
+import Watchlist from "./Watchlist";
 import Feedback from "./Feedback";
 import { GrowthChart, LogChart, NetWorthChart, Donut } from "./components/charts";
 
@@ -531,6 +532,7 @@ function Tutorial({ onClose, onNavigate }) {
 // Clean feather-style line icons for each tool tile (inherit currentColor).
 const TOOL_ICONS = {
   advisor:   <><path d="M12 3l1.9 4.8L18.7 9.7l-4.8 1.9L12 16.4l-1.9-4.8L5.3 9.7l4.8-1.9z"/><path d="M19 14l.6 1.7 1.7.6-1.7.6-.6 1.7-.6-1.7-1.7-.6 1.7-.6z"/></>,
+  watchlist: <><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></>,
   split:     <><path d="M12 2a10 10 0 1 0 10 10"/><path d="M12 2v10h10"/></>,
   grow:      <><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></>,
   health:    <><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8z"/></>,
@@ -672,6 +674,7 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
   const [nwHistory,   setNwHistory]   = useState(s0.nwHistory   ?? []); // [{date, value}] daily snapshots
   const [goals,       setGoals]       = useState(s0.goals       ?? []); // [{id, name, target, saved}]
   const [subs,        setSubs]        = useState(s0.subs        ?? []); // [{id, name, amount, cycle}]
+  const [watchlist,   setWatchlist]   = useState(s0.watchlist   ?? ["bitcoin", "ethereum", "pax-gold"]); // CoinGecko ids
 
   // profile (name)
   const [profile, setProfile] = useState(s0.profile ?? { first: "", last: "" });
@@ -718,6 +721,7 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
     if (Array.isArray(st.subs))        setSubs(st.subs);
     if (Array.isArray(st.dashOrder))   setDashOrder(st.dashOrder);
     if (Array.isArray(st.dashHidden))  setDashHidden(st.dashHidden);
+    if (Array.isArray(st.watchlist))   setWatchlist(st.watchlist);
     if (typeof st.subTracking === "boolean") setSubTracking(st.subTracking);
     if (st.profile)  setProfile(st.profile);
     if (Array.isArray(d.entries)) setEntries(d.entries);
@@ -744,7 +748,7 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
 
   // local cache always; debounced, conflict-aware cloud save once hydrated
   useEffect(() => {
-    const blob = { settings: { income, spendPct, investBuckets, spendBuckets, principal, monthly, years, rate, assets, liabilities, nwHistory, goals, subs, profile, dashOrder, dashHidden, subTracking }, entries };
+    const blob = { settings: { income, spendPct, investBuckets, spendBuckets, principal, monthly, years, rate, assets, liabilities, nwHistory, goals, subs, profile, dashOrder, dashHidden, subTracking, watchlist }, entries };
     try { localStorage.setItem(LOCAL_KEY, JSON.stringify(blob)); }
     catch (e) { console.warn("Folio: couldn't save to local storage —", e?.message || e); }
     if (!hydrated.current || !userId) return;
@@ -765,7 +769,7 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
       }).catch(() => setSync("error"));
     }, 800);
     return () => clearTimeout(t);
-  }, [income, spendPct, investBuckets, spendBuckets, principal, monthly, years, rate, assets, liabilities, nwHistory, goals, subs, profile, dashOrder, dashHidden, subTracking, entries, userId, retryNonce]);
+  }, [income, spendPct, investBuckets, spendBuckets, principal, monthly, years, rate, assets, liabilities, nwHistory, goals, subs, profile, dashOrder, dashHidden, subTracking, watchlist, entries, userId, retryNonce]);
 
   const addEntry = () => {
     const amt = parseFloat(logAmount);
@@ -1201,6 +1205,7 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
           <div className="toolgrid" data-tour="toolgrid">
             {[
               ["advisor", "AI money coach", "Personalized analysis of your finances"],
+              ["watchlist", "Watchlist", "Live crypto & commodity prices"],
               ["split", "Split planner", "Plan spending & investing from your income"],
               ["grow", "Growth simulator", "See how investments compound over time"],
               ["health", "Financial health", "Your overall money score"],
@@ -1235,6 +1240,12 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
         {tab === "tools" && toolView === "advisor" && <>
           <BackBar title="AI money coach" onBack={() => setToolView("menu")} />
           <Advisor data={advisorData} />
+        </>}
+
+        {/* ── WATCHLIST (Tools) ── */}
+        {tab === "tools" && toolView === "watchlist" && <>
+          <BackBar title="Watchlist" onBack={() => setToolView("menu")} />
+          <Watchlist ids={watchlist} setIds={setWatchlist} currency={theme?.currency || "EUR"} />
         </>}
 
         {/* ── SPLIT (Tools) ── */}

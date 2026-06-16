@@ -48,7 +48,8 @@
       "Bash(perl -0pi -e 's/color: on \\\\? \"#fff\"/color: on ? C.onAccent/g; s/color: dashEdit \\\\? \"#fff\"/color: dashEdit ? C.onAccent/g; s/color: msView === id \\\\? \"#fff\"/color: msView === id ? C.onAccent/g' src/folio.jsx)",
       "Bash(perl -0pi -e 's/background: subTracking \\\\? C\\\\.accent : C\\\\.border/background: subTracking ? C.up : C.border/g; s/background: showHints \\\\? C\\\\.accent : C\\\\.border/background: showHints ? C.up : C.border/g' src/folio.jsx)",
       "Bash(perl -0pi -e 's/stroke=\"#fff\"/stroke={C.onAccent}/g; s/color: \"#fff\"/color: C.onAccent/g' src/Auth.jsx src/ErrorBoundary.jsx)",
-      "Bash(git commit -q -m 'Design overhaul: monochrome getquin-style black & white look *)"
+      "Bash(git commit -q -m 'Design overhaul: monochrome getquin-style black & white look *)",
+      "Bash(git commit -q -m 'Add live watchlist \\(CoinGecko crypto + commodities\\) *)"
     ]
   }
 }
