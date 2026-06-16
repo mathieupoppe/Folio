@@ -57,7 +57,11 @@
       "Bash(git commit -q -m 'AI coach chat: conversational Q&A grounded in your snapshot *)",
       "Bash(supabase --version)",
       "Bash(gh auth *)",
-      "Bash(git commit -q -m 'Ignore supabase CLI temp dir *)"
+      "Bash(git commit -q -m 'Ignore supabase CLI temp dir *)",
+      "Bash(brew install *)",
+      "Bash(grep -E '\\(^|/\\)package\\\\.json$')",
+      "Bash(git commit *)",
+      "Bash(git push *)"
     ]
   }
 }
