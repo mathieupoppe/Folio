@@ -42,7 +42,8 @@
       "Bash(git commit -q -m 'Tutorial: spotlight walkthrough that highlights elements + switches tabs *)",
       "Bash(git commit -q -m 'Appearance: more accent colors + custom color-wheel picker *)",
       "Bash(git commit -q -m 'Appearance: collapse accent picker behind a button, trim presets, add color wheel; tool icons *)",
-      "Bash(git commit -q -m 'Demote Activity from a tab to a Home sub-page with fast quick-add *)"
+      "Bash(git commit -q -m 'Demote Activity from a tab to a Home sub-page with fast quick-add *)",
+      "Bash(git commit -q -m 'Demote Activity to a Home sub-page; rename widget; tour spotlight; stats; color wheel; tool icons *)"
     ]
   }
 }

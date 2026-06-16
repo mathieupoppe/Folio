@@ -1080,14 +1080,11 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
             activity: (
               <Card>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px", gap: "8px" }}>
-                  <div style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: C.hint }}>Recent activity</div>
-                  <div style={{ display: "flex", gap: "6px", flexShrink: 0 }}>
-                    <button onClick={() => { setHomeView("activity"); setLogAddOpen(true); }} style={{ background: C.accent + "16", border: "0.5px solid " + C.accent + "3a", borderRadius: "9px", padding: "5px 11px", color: C.accent, fontSize: "12px", fontWeight: 700, cursor: "pointer" }}>+ Add</button>
-                    <button onClick={() => { setHomeView("activity"); setLogAddOpen(false); }} style={{ background: "none", border: "none", color: C.accent, fontSize: "12px", fontWeight: 600, cursor: "pointer" }}>View all →</button>
-                  </div>
+                  <div style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: C.hint }}>Your transactions</div>
+                  <button onClick={() => { setHomeView("activity"); setLogAddOpen(false); }} style={{ background: "none", border: "none", color: C.accent, fontSize: "12px", fontWeight: 600, cursor: "pointer" }}>View all →</button>
                 </div>
                 {entries.length === 0
-                  ? <button onClick={() => { setHomeView("activity"); setLogAddOpen(true); }} style={{ width: "100%", textAlign: "left", padding: "6px 0", background: "none", border: "none", cursor: "pointer", fontSize: "12px", color: C.hint }}>No transactions yet — tap to add your first.</button>
+                  ? <button onClick={() => { setHomeView("activity"); setLogAddOpen(false); }} style={{ width: "100%", textAlign: "left", padding: "6px 0", background: "none", border: "none", cursor: "pointer", fontSize: "12px", color: C.hint }}>No transactions yet — tap to add your first.</button>
                   : entries.slice(0, 3).map(e => (
                       <div key={e.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderTop: "0.5px solid " + C.border }}>
                         <div>
