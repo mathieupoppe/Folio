@@ -75,11 +75,42 @@ Deno.serve(async (req) => {
     const apiKey = Deno.env.get("ANTHROPIC_API_KEY");
     if (!apiKey) return json({ error: "not_configured", message: "ANTHROPIC_API_KEY is not set on the server yet." }, 503);
 
-    // 2. Read the snapshot the client computed (already the user's own data).
-    const snapshot = await req.json().catch(() => ({}));
-    const currency = typeof snapshot?.currency === "string" ? snapshot.currency : "EUR";
-
+    const body = await req.json().catch(() => ({}));
     const anthropic = new Anthropic({ apiKey });
+
+    // ── CHAT MODE: conversational Q&A grounded in the user's snapshot ──
+    if (Array.isArray(body?.messages)) {
+      const snap = body.snapshot ?? {};
+      const cur = typeof snap?.currency === "string" ? snap.currency : "EUR";
+      // Sanitize history: only role/text, cap length, must start with a user turn.
+      const history = body.messages
+        .filter((m: { role?: string; content?: unknown }) => (m.role === "user" || m.role === "assistant") && typeof m.content === "string")
+        .slice(-16)
+        .map((m: { role: string; content: string }) => ({ role: m.role, content: m.content.slice(0, 4000) }));
+      while (history.length && history[0].role !== "user") history.shift();
+      if (!history.length) return json({ error: "bad_request", message: "No message to answer." }, 400);
+
+      const chatSystem = `${SYSTEM}
+
+You're now in a back-and-forth chat with the user. Answer their questions directly and conversationally — short, warm, and specific to their numbers. Use plain language; a sentence or two is usually enough unless they ask for depth. If something isn't in their data, say so briefly. Currency: ${cur}.
+
+Here is the user's current financial snapshot (JSON) for context:
+${JSON.stringify(snap, null, 2)}`;
+
+      const chat = await anthropic.messages.create({
+        model: "claude-opus-4-8",
+        max_tokens: 1200,
+        thinking: { type: "adaptive" },
+        system: chatSystem,
+        messages: history,
+      });
+      const replyBlock = chat.content.find((b: { type: string }) => b.type === "text") as { text?: string } | undefined;
+      return json({ reply: replyBlock?.text ?? "Sorry, I didn't catch that — try again?" });
+    }
+
+    // ── ANALYSIS MODE (default): structured one-shot read ──
+    const snapshot = body;
+    const currency = typeof snapshot?.currency === "string" ? snapshot.currency : "EUR";
     const message = await anthropic.messages.create({
       model: "claude-opus-4-8",
       max_tokens: 4000,

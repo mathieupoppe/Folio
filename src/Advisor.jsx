@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { C } from "./theme";
 import { supabase } from "./supabase";
 import { generateInsights, insightsHeadline } from "./lib/insights";
@@ -75,6 +75,39 @@ export default function Advisor({ data }) {
     }
   };
 
+  // ── Coach chat ──
+  const [chat, setChat] = useState([]); // [{ role, content }]
+  const [chatInput, setChatInput] = useState("");
+  const [chatBusy, setChatBusy] = useState(false);
+  const [chatErr, setChatErr] = useState("");
+  const scrollRef = useRef(null);
+  useEffect(() => { scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" }); }, [chat, chatBusy]);
+
+  const sendChat = async (text) => {
+    const q = (text ?? chatInput).trim();
+    if (!q || chatBusy) return;
+    const next = [...chat, { role: "user", content: q }];
+    setChat(next); setChatInput(""); setChatErr(""); setChatBusy(true);
+    try {
+      const { data: res, error } = await supabase.functions.invoke("advisor", { body: { messages: next, snapshot: data } });
+      if (error) throw error;
+      if (res?.error) {
+        setChatErr(res.error === "not_configured"
+          ? "The AI coach isn't switched on yet — deploy the advisor function and set your Anthropic key."
+          : (res.message || "Something went wrong."));
+        return;
+      }
+      setChat([...next, { role: "assistant", content: res.reply }]);
+    } catch (e) {
+      const notReachable = e?.name === "FunctionsFetchError" || /failed to send|fetch/i.test(e?.message || "");
+      setChatErr(notReachable ? "Couldn't reach the AI coach. Deploy the advisor function first, then try again." : (e?.message || "Something went wrong."));
+    } finally {
+      setChatBusy(false);
+    }
+  };
+
+  const STARTERS = ["Why is my health score what it is?", "How can I improve fastest?", "Am I saving enough?"];
+
   const accentGrad = `linear-gradient(135deg, ${C.accent}, ${C.accentD})`;
 
   return (
@@ -144,6 +177,59 @@ export default function Advisor({ data }) {
             </div>
           </>
         )}
+      </div>
+
+      {/* Coach chat */}
+      <div style={card}>
+        <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "10px" }}>
+          <Sparkle size={16} color={C.accent} />
+          <div style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: C.accent }}>Ask your coach</div>
+        </div>
+
+        {chat.length === 0 ? (
+          <div style={{ fontSize: "13px", color: C.sub, lineHeight: 1.5, marginBottom: "10px" }}>
+            Ask anything about your money — your numbers are the context.
+          </div>
+        ) : (
+          <div ref={scrollRef} style={{ maxHeight: "340px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "8px", marginBottom: "10px" }}>
+            {chat.map((m, i) => (
+              <div key={i} style={{ alignSelf: m.role === "user" ? "flex-end" : "flex-start", maxWidth: "85%", padding: "9px 12px", borderRadius: "14px",
+                background: m.role === "user" ? C.accent : C.surface, color: m.role === "user" ? C.onAccent : C.text,
+                border: m.role === "user" ? "none" : "0.5px solid " + C.border, fontSize: "13px", lineHeight: 1.5, whiteSpace: "pre-wrap" }}>
+                {m.content}
+              </div>
+            ))}
+            {chatBusy && (
+              <div style={{ alignSelf: "flex-start", padding: "9px 12px", borderRadius: "14px", background: C.surface, border: "0.5px solid " + C.border, color: C.sub, fontSize: "13px" }}>
+                <span className="fspin" style={{ width: 13, height: 13, borderRadius: "50%", border: "2px solid " + C.border, borderTopColor: C.sub, display: "inline-block", verticalAlign: "middle" }} /> thinking…
+              </div>
+            )}
+          </div>
+        )}
+
+        {chat.length === 0 && (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginBottom: "12px" }}>
+            {STARTERS.map(s => (
+              <button key={s} onClick={() => sendChat(s)} disabled={chatBusy} style={{ padding: "7px 11px", borderRadius: "999px", border: "0.5px solid " + C.border, background: C.surface, color: C.sub, fontSize: "12px", fontWeight: 600, cursor: "pointer" }}>{s}</button>
+            ))}
+          </div>
+        )}
+
+        <div style={{ display: "flex", gap: "8px" }}>
+          <input
+            value={chatInput}
+            onChange={e => setChatInput(e.target.value)}
+            onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendChat(); } }}
+            placeholder="Ask your coach…"
+            aria-label="Ask your coach a question"
+            style={{ flex: 1, minWidth: 0, padding: "11px 13px", borderRadius: "12px", border: "0.5px solid " + C.border, background: C.surface, color: C.text, fontSize: "13px", outline: "none" }}
+          />
+          <button onClick={() => sendChat()} disabled={chatBusy || !chatInput.trim()} aria-label="Send" style={{
+            flexShrink: 0, width: 44, borderRadius: "12px", border: "none", cursor: chatBusy || !chatInput.trim() ? "default" : "pointer",
+            background: chatInput.trim() ? accentGrad : C.surface, color: chatInput.trim() ? C.onAccent : C.hint, fontWeight: 700, fontSize: "16px",
+          }}>↑</button>
+        </div>
+        {chatErr && <div style={{ fontSize: "12px", color: C.down, marginTop: "8px", lineHeight: 1.5 }}>{chatErr}</div>}
       </div>
     </>
   );
