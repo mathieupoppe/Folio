@@ -1265,15 +1265,12 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
             {[
               ["advisor", "AI money coach", "Personalized analysis of your finances"],
               ["watchlist", "Watchlist", "Live crypto & commodity prices"],
-              ["split", "Split planner", "Plan spending & investing from your income"],
-              ["budget", "Budget", "Track spending vs your plan, by category"],
+              ["budget", "Budget", "Plan your money & track spending by category"],
               ["grow", "Growth simulator", "See how investments compound over time"],
               ["health", "Financial health", "Your overall money score"],
               ["goals", "Goals", "Set savings targets & track progress"],
-              ["savings", "Savings rate", "What % of income you keep"],
-              ["calendar", "Calendar", "When your subscriptions are due"],
-              ["subs", "Subscriptions", "Track recurring costs"],
-              ["debt", "Debt payoff", "Estimate your debt-free date"],
+              ["subs", "Subscriptions", "Recurring costs & their calendar"],
+              ["debt", "Debt payoff", "Snowball vs avalanche payoff plan"],
               ["fire", "FIRE number", "What you need to retire"],
               ["emergency", "Emergency fund", "Months of expenses covered"],
             ].map(([id, label, desc]) => (
@@ -1310,7 +1307,15 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
 
         {/* ── SPLIT (Tools) ── */}
         {tab === "tools" && toolView === "split" && <>
-          <BackBar title="Split planner" onBack={() => setToolView("menu")} />
+          <BackBar title="Budget" onBack={() => setToolView("menu")} />
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px", marginBottom: "12px" }}>
+            <button style={{ padding: "10px", borderRadius: "11px", border: "none", background: C.accent, color: C.onAccent, fontWeight: 700, fontSize: "13px", cursor: "default" }}>Plan</button>
+            <button onClick={() => setToolView("budget")} style={{ padding: "10px", borderRadius: "11px", border: "0.5px solid " + C.border, background: C.surface, color: C.sub, fontWeight: 700, fontSize: "13px", cursor: "pointer" }}>This month</button>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: "8px", marginBottom: "12px" }}>
+            <Metric label="Savings rate" value={Math.round(100 - spendPct) + "%"} desc="Of your income kept" positive={true} />
+            <Metric label="Investing / mo" value={fmt(investable)} desc="From this plan" positive={true} />
+          </div>
           <Reveal cta="Templates">
             {close => (
               <Card>
@@ -1409,6 +1414,11 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
         {/* ── BUDGET (Tools) ── */}
         {tab === "tools" && toolView === "budget" && <>
           <BackBar title="Budget" onBack={() => setToolView("menu")} />
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px", marginBottom: "12px" }}>
+            <button onClick={() => setToolView("split")} style={{ padding: "10px", borderRadius: "11px", border: "0.5px solid " + C.border, background: C.surface, color: C.sub, fontWeight: 700, fontSize: "13px", cursor: "pointer" }}>Plan</button>
+            <button style={{ padding: "10px", borderRadius: "11px", border: "none", background: C.accent, color: C.onAccent, fontWeight: 700, fontSize: "13px", cursor: "default" }}>This month</button>
+          </div>
+          {showHints && <div style={{ fontSize: "11px", color: C.hint, lineHeight: 1.5, margin: "-4px 2px 12px" }}>🔌 Enter spending manually for now — it'll auto-fill once you connect a bank.</div>}
           <BudgetTool spendBuckets={spendBuckets} spendMoney={spendMoney} budget={budget} setBudget={setBudget} currency={theme?.currency || "EUR"} showHints={showHints} onPlan={() => setToolView("split")} />
         </>}
 
@@ -1542,6 +1552,37 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
             <Metric label="Per month" value={fmt(subsMonthly)} desc="All subscriptions" positive={false} />
             <Metric label="Per year"  value={fmtK(subsMonthly * 12)} desc="That's the yearly cost" positive={false} />
           </div>
+          {subs.length > 0 && (() => {
+            const now = new Date(), year = now.getFullYear(), month = now.getMonth();
+            const monthName = now.toLocaleString("en-US", { month: "long" });
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            const firstDow = (new Date(year, month, 1).getDay() + 6) % 7;
+            const byDay = {};
+            subs.forEach(s => { const d = s.day || 1; (byDay[d] = byDay[d] || []).push(s); });
+            const cells = [];
+            for (let i = 0; i < firstDow; i++) cells.push(null);
+            for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+            return (
+              <Card>
+                <Label text={monthName + " " + year} hint="Days with a charge are highlighted." />
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: "4px", marginTop: "4px" }}>
+                  {["M","T","W","T","F","S","S"].map((d, i) => <div key={i} style={{ textAlign: "center", fontSize: "10px", color: C.hint, padding: "2px 0" }}>{d}</div>)}
+                  {cells.map((d, i) => {
+                    const has = d && byDay[d];
+                    const isToday = d === now.getDate();
+                    return (
+                      <div key={i} style={{ aspectRatio: "1", borderRadius: "8px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", fontSize: "12px",
+                        background: has ? C.accent + "22" : "transparent", border: isToday ? "1px solid " + C.accent : "none",
+                        color: d ? (has ? C.accent : C.sub) : "transparent", fontWeight: has ? 700 : 400 }}>
+                        {d || ""}
+                        {has && <span style={{ width: 4, height: 4, borderRadius: "50%", background: C.accent, marginTop: "2px" }} />}
+                      </div>
+                    );
+                  })}
+                </div>
+              </Card>
+            );
+          })()}
           <Card>
             <Label text="Your subscriptions" hint="Phone, streaming, gym, software…" />
             {subs.length === 0 && <div style={{ fontSize: "12px", color: C.hint, padding: "4px 0 10px" }}>Nothing added yet.</div>}
@@ -1570,31 +1611,6 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
           <BackBar title="Debt payoff" onBack={() => setToolView("menu")} />
           <DebtsTool debts={debts} setDebts={setDebts} budget={debtBudget} setBudget={setDebtBudget} strategy={debtStrategy} setStrategy={setDebtStrategy} currency={theme?.currency || "EUR"} showHints={showHints} />
         </>}
-
-        {/* ── SAVINGS RATE (Tools) ── */}
-        {tab === "tools" && toolView === "savings" && (() => {
-          const rate = 100 - spendPct; // investing share of income
-          const band = rate >= 50 ? { c: C.up, t: "Exceptional — you're building wealth fast." }
-            : rate >= 20 ? { c: C.up, t: "Great — above the 20% rule of thumb." }
-            : rate >= 10 ? { c: C.accent, t: "Solid start — nudge it higher when you can." }
-            : { c: C.down, t: "Low — try to free up more to invest." };
-          return <>
-            <BackBar title="Savings rate" onBack={() => setToolView("menu")} />
-            <Card>
-              <Label text="Your savings rate" hint="The share of your income you invest instead of spend." />
-              <div style={{ fontSize: "40px", fontWeight: 800, color: band.c, letterSpacing: "-0.02em" }}>{Math.round(rate)}%</div>
-              <div style={{ height: "8px", borderRadius: "4px", background: C.border, overflow: "hidden", margin: "8px 0 6px" }}>
-                <div style={{ height: "100%", width: rate + "%", background: band.c, borderRadius: "4px" }} />
-              </div>
-              <div style={{ fontSize: "12px", color: C.sub }}>{band.t}</div>
-            </Card>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: "8px" }}>
-              <Metric label="Investing / mo" value={fmt(investable)} desc="Out of your income" positive={true} />
-              <Metric label="Per year"       value={fmtK(investable * 12)} desc="Invested annually" positive={true} />
-            </div>
-            <div style={{ fontSize: "11px", color: C.hint, textAlign: "center", padding: "8px 0" }}>Adjust this on the Split planner.</div>
-          </>;
-        })()}
 
         {/* ── FIRE NUMBER (Tools) ── */}
         {tab === "tools" && toolView === "fire" && (() => {
@@ -1682,47 +1698,6 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
             ))}
           </Card>
         </>}
-
-        {/* ── CALENDAR (Tools) ── */}
-        {tab === "tools" && toolView === "calendar" && (() => {
-          const now = new Date();
-          const year = now.getFullYear(), month = now.getMonth();
-          const monthName = now.toLocaleString("en-US", { month: "long" });
-          const daysInMonth = new Date(year, month + 1, 0).getDate();
-          const firstDow = (new Date(year, month, 1).getDay() + 6) % 7; // Mon=0
-          const byDay = {};
-          subs.forEach(s => { const d = s.day || 1; (byDay[d] = byDay[d] || []).push(s); });
-          const monthlyDue = subs.reduce((a, s) => a + (s.cycle === "yearly" ? 0 : (s.amount || 0)), 0);
-          const cells = [];
-          for (let i = 0; i < firstDow; i++) cells.push(null);
-          for (let d = 1; d <= daysInMonth; d++) cells.push(d);
-          return <>
-            <BackBar title="Calendar" onBack={() => setToolView("menu")} />
-            <Card>
-              <Label text={monthName + " " + year} hint="Days with a subscription charge are highlighted." />
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: "4px", marginTop: "4px" }}>
-                {["M","T","W","T","F","S","S"].map((d, i) => <div key={i} style={{ textAlign: "center", fontSize: "10px", color: C.hint, padding: "2px 0" }}>{d}</div>)}
-                {cells.map((d, i) => {
-                  const has = d && byDay[d];
-                  const isToday = d === now.getDate();
-                  return (
-                    <div key={i} style={{ aspectRatio: "1", borderRadius: "8px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", fontSize: "12px",
-                      background: has ? C.accent + "22" : "transparent", border: isToday ? "1px solid " + C.accent : "none",
-                      color: d ? (has ? C.accent : C.sub) : "transparent", fontWeight: has ? 700 : 400 }}>
-                      {d || ""}
-                      {has && <span style={{ width: 4, height: 4, borderRadius: "50%", background: C.accent, marginTop: "2px" }} />}
-                    </div>
-                  );
-                })}
-              </div>
-            </Card>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: "8px" }}>
-              <Metric label="Due this month" value={fmt(monthlyDue)} desc="Recurring charges" positive={false} />
-              <Metric label="Subscriptions" value={subs.length} desc="Tracked" />
-            </div>
-            {subs.length === 0 && <div style={{ fontSize: "12px", color: C.hint, textAlign: "center", padding: "10px 0" }}>Add subscriptions (with a billing day) to see them here.</div>}
-          </>;
-        })()}
 
         {/* ── LOG ── */}
         {tab === "home" && homeView === "activity" && <>
