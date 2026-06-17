@@ -20,7 +20,8 @@ import DebtsTool from "./Debts";
 import { currentStreak, computeAchievements } from "./lib/achievements";
 import { exportTransactionsCSV, openPrintableReport } from "./reports";
 import { getRate } from "./fx";
-import { readLock, writeLock, hashPin } from "./lock";
+import { readLock, writeLock } from "./lock";
+import PinModal from "./PinModal";
 import { fetchQuotes } from "./market";
 import Feedback from "./Feedback";
 import { GrowthChart, LogChart, NetWorthChart, Donut } from "./components/charts";
@@ -855,26 +856,25 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
     setTheme && setTheme({ currency: code });
   };
 
-  // App lock (device-local PIN). Biometric/Face ID arrives with the native build.
+  // App lock (device-local PIN) via an in-app PIN pad. Changing or turning off
+  // the lock first requires the current PIN (on native this becomes Face ID).
   const [lock, setLockState] = useState(() => readLock());
+  const [pinModal, setPinModal] = useState(null); // { mode, title, onDone }
   const saveLock = v => { writeLock(v); setLockState(v); };
-  const askPin = label => {
-    const p1 = window.prompt(label);
-    if (p1 == null) return null;
-    if (!/^\d{4}$/.test(p1)) { window.alert("PIN must be exactly 4 digits."); return null; }
-    const p2 = window.prompt("Confirm your PIN:");
-    if (p2 !== p1) { window.alert("PINs didn't match — try again."); return null; }
-    return hashPin(p1);
-  };
   const toggleLock = () => {
     if (lock.enabled) {
-      if (window.confirm("Turn off the app lock?")) saveLock({ enabled: false, pin: "" });
+      // security check before disabling
+      setPinModal({ mode: "verify", title: "Enter your PIN to turn off the lock", onDone: () => { saveLock({ enabled: false, pin: "" }); setPinModal(null); } });
     } else {
-      const pin = askPin("Set a 4-digit PIN to lock Folio on this device:");
-      if (pin) { saveLock({ enabled: true, pin }); window.alert("App lock is on. You'll enter this PIN next time you open Folio."); }
+      setPinModal({ mode: "set", title: "Set a 4-digit PIN", onDone: hash => { saveLock({ enabled: true, pin: hash }); setPinModal(null); } });
     }
   };
-  const changePin = () => { const pin = askPin("New 4-digit PIN:"); if (pin) { saveLock({ enabled: true, pin }); window.alert("PIN updated."); } };
+  const changePin = () => {
+    // verify current PIN (the security check), then set a new one
+    setPinModal({ mode: "verify", title: "Confirm your current PIN", onDone: () => {
+      setPinModal({ mode: "set", title: "Choose a new PIN", onDone: hash => { saveLock({ enabled: true, pin: hash }); setPinModal(null); } });
+    } });
+  };
 
   // monthly subscriptions total (normalize yearly → monthly)
   const subsMonthly = subsMonthlyLib(subs);
@@ -2146,6 +2146,7 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
       </div>
 
       {showTour && <Tutorial onClose={closeTour} onNavigate={(t) => { setTab(t); if (t === "more") setMoreView("menu"); if (t === "tools") setToolView("menu"); if (t === "home") setHomeView("dash"); }} />}
+      {pinModal && <PinModal key={pinModal.mode + "|" + pinModal.title} mode={pinModal.mode} title={pinModal.title} onDone={pinModal.onDone} onClose={() => setPinModal(null)} />}
     </div>
     </HintCtx.Provider>
   );
