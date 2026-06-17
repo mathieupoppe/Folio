@@ -491,7 +491,7 @@ function Tutorial({ onClose, onNavigate }) {
   const vw = typeof window !== "undefined" ? window.innerWidth : 400;
   const vh = typeof window !== "undefined" ? window.innerHeight : 800;
   const cardW = Math.min(420, vw - 24);
-  const CARD_H = 300;
+  const CARD_H = 270;
   let cardStyle;
   if (rect) {
     const below = vh - (rect.top + rect.height);
@@ -505,13 +505,23 @@ function Tutorial({ onClose, onNavigate }) {
     cardStyle = { top: "50%", left: "50%", transform: "translate(-50%,-50%)" };
   }
 
+  const DIM = "rgba(0,0,0,0.68)";
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 80 }}>
-      {/* dim + click-catcher; full dim only when nothing is spotlighted */}
-      <div onClick={() => {}} style={{ position: "absolute", inset: 0, background: rect ? "transparent" : "rgba(0,0,0,0.62)", backdropFilter: rect ? "none" : "blur(3px)", WebkitBackdropFilter: rect ? "none" : "blur(3px)" }} />
-      {/* spotlight: the surrounding dim is the box-shadow spread */}
-      {rect && (
-        <div style={{ position: "fixed", top: rect.top - 6, left: rect.left - 6, width: rect.width + 12, height: rect.height + 12, borderRadius: "14px", boxShadow: `0 0 0 9999px rgba(0,0,0,0.62), 0 0 0 2px ${C.accent}, ${C.glow}`, pointerEvents: "none", transition: "all .28s cubic-bezier(.4,0,.2,1)" }} />
+      {rect ? (
+        <>
+          {/* four dim panels around the target → a clean spotlight hole (no box-shadow fragility) */}
+          {[
+            { top: 0, left: 0, right: 0, height: Math.max(0, rect.top - 6) },
+            { top: rect.top + rect.height + 6, left: 0, right: 0, bottom: 0 },
+            { top: rect.top - 6, left: 0, width: Math.max(0, rect.left - 6), height: rect.height + 12 },
+            { top: rect.top - 6, left: rect.left + rect.width + 6, right: 0, height: rect.height + 12 },
+          ].map((s, idx) => <div key={idx} style={{ position: "fixed", background: DIM, ...s }} />)}
+          {/* highlight ring */}
+          <div style={{ position: "fixed", top: rect.top - 6, left: rect.left - 6, width: rect.width + 12, height: rect.height + 12, borderRadius: "14px", border: "2px solid " + C.accent, pointerEvents: "none", transition: "all .25s ease" }} />
+        </>
+      ) : (
+        <div style={{ position: "absolute", inset: 0, background: DIM, backdropFilter: "blur(3px)", WebkitBackdropFilter: "blur(3px)" }} />
       )}
       <div className="ffade" style={{ position: "fixed", width: cardW, background: C.card, borderRadius: "18px", border: "0.5px solid " + C.border, boxShadow: C.shadow, padding: "1.2rem 1.2rem 1rem", zIndex: 82, ...cardStyle }}>
         <div style={{ display: "flex", alignItems: "center", gap: "11px", marginBottom: "10px" }}>
