@@ -19,6 +19,8 @@ import BudgetTool, { budgetPeriod } from "./Budget";
 import DebtsTool from "./Debts";
 import { currentStreak, computeAchievements } from "./lib/achievements";
 import { exportTransactionsCSV, openPrintableReport } from "./reports";
+import { getRate } from "./fx";
+import { readLock, writeLock, hashPin } from "./lock";
 import { fetchQuotes } from "./market";
 import Feedback from "./Feedback";
 import { GrowthChart, LogChart, NetWorthChart, Donut } from "./components/charts";
@@ -826,6 +828,53 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
     setSpendBuckets(build(SPEND_LIBRARY, t.spend));
     setInvestBuckets(build(INVEST_LIBRARY, t.invest));
   };
+
+  // Change display currency — optionally converting every stored fiat amount at
+  // the live rate (holdings/watchlist are already priced live, so untouched).
+  const changeCurrency = async (code) => {
+    const from = theme?.currency || "EUR";
+    if (code === from) return;
+    let rate = 1;
+    if (window.confirm(`Convert all your amounts from ${from} to ${code} at today's exchange rate?\n\nOK = convert · Cancel = just relabel without converting.`)) {
+      try { rate = await getRate(from, code); }
+      catch (e) { window.alert((e && e.message) || "Couldn't fetch the exchange rate — keeping your numbers as-is."); rate = 1; }
+    }
+    if (rate !== 1) {
+      const m = n => Math.round((Number(n) || 0) * rate * 100) / 100;
+      setIncome(m(income)); setPrincipal(m(principal)); setMonthly(m(monthly));
+      setAssets(assets.map(a => ({ ...a, amount: m(a.amount) })));
+      setLiabilities(liabilities.map(l => ({ ...l, amount: m(l.amount) })));
+      setGoals(goals.map(g => ({ ...g, target: m(g.target), saved: m(g.saved) })));
+      setSubs(subs.map(s => ({ ...s, amount: m(s.amount) })));
+      setDebts(debts.map(d => ({ ...d, balance: m(d.balance), min: m(d.min) })));
+      if (debtBudget) setDebtBudget(String(m(debtBudget)));
+      setNwHistory(nwHistory.map(p => ({ ...p, value: m(p.value) })));
+      setBudget(b => ({ ...b, spent: Object.fromEntries(Object.entries(b.spent || {}).map(([k, v]) => [k, m(v)])) }));
+      setEntries(entries.map(e => ({ ...e, amount: m(e.amount) })));
+    }
+    setTheme && setTheme({ currency: code });
+  };
+
+  // App lock (device-local PIN). Biometric/Face ID arrives with the native build.
+  const [lock, setLockState] = useState(() => readLock());
+  const saveLock = v => { writeLock(v); setLockState(v); };
+  const askPin = label => {
+    const p1 = window.prompt(label);
+    if (p1 == null) return null;
+    if (!/^\d{4}$/.test(p1)) { window.alert("PIN must be exactly 4 digits."); return null; }
+    const p2 = window.prompt("Confirm your PIN:");
+    if (p2 !== p1) { window.alert("PINs didn't match — try again."); return null; }
+    return hashPin(p1);
+  };
+  const toggleLock = () => {
+    if (lock.enabled) {
+      if (window.confirm("Turn off the app lock?")) saveLock({ enabled: false, pin: "" });
+    } else {
+      const pin = askPin("Set a 4-digit PIN to lock Folio on this device:");
+      if (pin) { saveLock({ enabled: true, pin }); window.alert("App lock is on. You'll enter this PIN next time you open Folio."); }
+    }
+  };
+  const changePin = () => { const pin = askPin("New 4-digit PIN:"); if (pin) { saveLock({ enabled: true, pin }); window.alert("PIN updated."); } };
 
   // monthly subscriptions total (normalize yearly → monthly)
   const subsMonthly = subsMonthlyLib(subs);
@@ -1882,7 +1931,7 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
                 {CURRENCIES.map(cu => {
                   const on = (theme?.currency || "EUR") === cu.code;
                   return (
-                    <button key={cu.code} onClick={() => setTheme && setTheme({ currency: cu.code })} style={{
+                    <button key={cu.code} onClick={() => changeCurrency(cu.code)} style={{
                       padding: "11px 12px", borderRadius: "10px", cursor: "pointer", fontSize: "13px", fontWeight: 600, textAlign: "left",
                       border: "1px solid " + (on ? C.accent : C.border), background: on ? C.accent + "18" : C.surface, color: on ? C.accent : C.text,
                     }}>{cu.symbol} {cu.code} <span style={{ color: C.hint, fontWeight: 400 }}>· {cu.label}</span></button>
@@ -1953,9 +2002,22 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
           {moreView === "security" && <>
             <BackBar title="Security" onBack={() => setMoreView("menu")} />
             <Card>
-              <Label text="App lock" hint="Coming soon." />
-              <div style={{ fontSize: "13px", color: C.sub, lineHeight: 1.6 }}>A passcode and Face ID / fingerprint unlock are on the way — they'll arrive with the native app so they can use your device's secure lock.</div>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px" }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: "13px", fontWeight: 700, color: C.text }}>App lock</div>
+                  {showHints && <div style={{ fontSize: "11px", color: C.hint, marginTop: "2px", lineHeight: 1.45 }}>Require a 4-digit PIN to open Folio on this device.</div>}
+                </div>
+                <button role="switch" aria-checked={lock.enabled} onClick={toggleLock} style={{ width: 46, height: 28, borderRadius: "999px", border: "none", cursor: "pointer", flexShrink: 0, background: lock.enabled ? C.up : C.border, position: "relative", transition: "background .2s" }}>
+                  <span style={{ position: "absolute", top: 3, left: lock.enabled ? 21 : 3, width: 22, height: 22, borderRadius: "50%", background: "#fff", transition: "left .2s" }} />
+                </button>
+              </div>
+              {lock.enabled && (
+                <button onClick={changePin} style={{ width: "100%", marginTop: "12px", padding: "11px", borderRadius: "10px", border: "0.5px solid " + C.border, background: C.surface, color: C.text, fontWeight: 600, fontSize: "13px", cursor: "pointer" }}>Change PIN</button>
+              )}
             </Card>
+            <div style={{ fontSize: "11px", color: C.hint, lineHeight: 1.6, padding: "2px 4px" }}>
+              Face ID / fingerprint unlock arrives with the native app — it'll use your device's secure lock. The PIN is a quick convenience lock; your account password is the real protection.
+            </div>
           </>}
 
           {moreView === "membership" && <>

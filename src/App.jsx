@@ -3,6 +3,8 @@ import { C, applyTheme, applyCurrency, loadTheme } from "./theme";
 import { supabase, isConfigured } from "./supabase";
 import Auth from "./Auth";
 import Folio from "./folio.jsx";
+import LockScreen from "./LockScreen";
+import { lockActive } from "./lock";
 
 function Centered({ children }) {
   return (
@@ -26,6 +28,14 @@ function Spinner() {
 export default function App() {
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [locked, setLocked] = useState(() => lockActive());
+
+  // re-lock when the app returns to the foreground (if the lock is on)
+  useEffect(() => {
+    const onVis = () => { if (document.visibilityState === "visible" && lockActive()) setLocked(true); };
+    document.addEventListener("visibilitychange", onVis);
+    return () => document.removeEventListener("visibilitychange", onVis);
+  }, []);
 
   // appearance (light/dark + accent), persisted; applied to the shared C object
   const [theme, setThemeState] = useState(loadTheme);
@@ -54,6 +64,8 @@ export default function App() {
       </div>
     </Centered>
   );
+
+  if (locked) return <LockScreen onUnlock={() => setLocked(false)} />;
 
   if (loading) return <Centered><Spinner /></Centered>;
 
