@@ -651,6 +651,7 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
   const [tab, setTab] = useState("feed");
   const [moreView, setMoreView] = useState("menu"); // sub-page within the More tab
   const [toolView, setToolView] = useState("menu"); // sub-page within the Tools tab
+  const [toolEdit, setToolEdit] = useState(false);  // Tools hub customize mode
   const [homeView, setHomeView] = useState("dash"); // sub-page within the Home tab
   const [nwPeriod, setNwPeriod] = useState("MAX");    // net-worth graph period
 
@@ -716,6 +717,9 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
   const [posts, setPosts] = useState(s0.posts ?? []);
   // Saved-post playlists ("collections"). [{ id, name, items: [snapshot] }]
   const [playlists, setPlaylists] = useState(s0.playlists ?? []);
+  // Tools hub customization — pinned (ordered) + hidden tool ids.
+  const [toolPins, setToolPins] = useState(s0.toolPins ?? ["budget", "advisor"]);
+  const [toolHidden, setToolHidden] = useState(s0.toolHidden ?? []);
   // Live social state, backed by the Supabase social tables (Phase 1).
   const [socialProfile, setSocialProfile] = useState(null); // { handle, display_name, bio, avatar_url, *_count }
   const [myPosts, setMyPosts]   = useState([]); // this user's posts, table-backed
@@ -772,6 +776,8 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
     if (Array.isArray(st.watchlist))   setWatchlist(st.watchlist);
     if (Array.isArray(st.posts))       setPosts(st.posts);
     if (Array.isArray(st.playlists))   setPlaylists(st.playlists);
+    if (Array.isArray(st.toolPins))    setToolPins(st.toolPins);
+    if (Array.isArray(st.toolHidden))  setToolHidden(st.toolHidden);
     if (typeof st.subTracking === "boolean") setSubTracking(st.subTracking);
     if (st.profile)  setProfile(st.profile);
     if (Array.isArray(d.entries)) setEntries(d.entries);
@@ -798,7 +804,7 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
 
   // local cache always; debounced, conflict-aware cloud save once hydrated
   useEffect(() => {
-    const blob = { settings: { income, spendPct, investBuckets, spendBuckets, principal, monthly, years, rate, assets, liabilities, nwHistory, goals, subs, profile, posts, playlists, dashOrder, dashHidden, subTracking, watchlist, holdings, budget, debts, debtBudget, debtStrategy }, entries };
+    const blob = { settings: { income, spendPct, investBuckets, spendBuckets, principal, monthly, years, rate, assets, liabilities, nwHistory, goals, subs, profile, posts, playlists, toolPins, toolHidden, dashOrder, dashHidden, subTracking, watchlist, holdings, budget, debts, debtBudget, debtStrategy }, entries };
     try { localStorage.setItem(LOCAL_KEY, JSON.stringify(blob)); }
     catch (e) { console.warn("Folio: couldn't save to local storage —", e?.message || e); }
     if (!hydrated.current || !userId) return;
@@ -819,7 +825,7 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
       }).catch(() => setSync("error"));
     }, 800);
     return () => clearTimeout(t);
-  }, [income, spendPct, investBuckets, spendBuckets, principal, monthly, years, rate, assets, liabilities, nwHistory, goals, subs, profile, posts, playlists, dashOrder, dashHidden, subTracking, watchlist, holdings, budget, debts, debtBudget, debtStrategy, entries, userId, retryNonce]);
+  }, [income, spendPct, investBuckets, spendBuckets, principal, monthly, years, rate, assets, liabilities, nwHistory, goals, subs, profile, posts, playlists, toolPins, toolHidden, dashOrder, dashHidden, subTracking, watchlist, holdings, budget, debts, debtBudget, debtStrategy, entries, userId, retryNonce]);
 
   // ── Social (Phase 1): load table-backed profile + posts + feed; migrate once ──
   const refreshSocial = async () => {
@@ -1423,39 +1429,99 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
           </Card>
         </>}
 
-        {/* ── TOOLS MENU ── */}
-        {tab === "tools" && toolView === "menu" && <>
-          <div className="toolgrid" data-tour="toolgrid">
-            {[
-              ["advisor", "AI money coach", "Personalized analysis of your finances"],
-              ["watchlist", "Watchlist", "Live crypto & commodity prices"],
-              ["budget", "Budget", "Plan your money & track spending by category"],
-              ["grow", "Growth simulator", "See how investments compound over time"],
-              ["health", "Financial health", "Your overall money score"],
-              ["goals", "Goals", "Set savings targets & track progress"],
-              ["subs", "Subscriptions", "Recurring costs & their calendar"],
-              ["debt", "Debt payoff", "Snowball vs avalanche payoff plan"],
-              ["fire", "FIRE number", "What you need to retire"],
-              ["emergency", "Emergency fund", "Months of expenses covered"],
-            ].map(([id, label, desc]) => (
-              <button key={id} onClick={() => setToolView(id)} style={{
-                textAlign: "left", cursor: "pointer", background: C.cardGrad, border: "0.5px solid " + C.border,
-                boxShadow: C.shadow + ", " + C.hi, borderRadius: "16px", padding: "14px 16px", marginBottom: "10px",
-                display: "flex", alignItems: "center", gap: "12px",
-              }}>
-                <span style={{ width: 38, height: 38, borderRadius: "11px", flexShrink: 0, background: C.accent + "1c", color: C.accent, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <ToolIcon name={id} />
+        {/* ── TOOLS MENU (pinned favorites + live cards + customizable) ── */}
+        {tab === "tools" && toolView === "menu" && (() => {
+          const TOOLS = [
+            ["advisor", "AI money coach", "Personalized analysis of your finances"],
+            ["watchlist", "Watchlist", "Live crypto & commodity prices"],
+            ["budget", "Budget", "Plan & track spending by category"],
+            ["grow", "Growth simulator", "See how investments compound"],
+            ["health", "Financial health", "Your overall money score"],
+            ["goals", "Goals", "Savings targets & progress"],
+            ["subs", "Subscriptions", "Recurring costs & calendar"],
+            ["debt", "Debt payoff", "Snowball vs avalanche plan"],
+            ["fire", "FIRE number", "What you need to retire"],
+            ["emergency", "Emergency fund", "Months of expenses covered"],
+          ];
+          const META = Object.fromEntries(TOOLS.map(t => [t[0], { label: t[1], desc: t[2] }]));
+          // Live one-glance stat per tool.
+          const stat = id => {
+            switch (id) {
+              case "watchlist": return { v: String(watchlist.length), l: "tracked" };
+              case "budget": { const sb = spendByCategory(entries, budgetPeriod()); const sp = Object.values(sb).reduce((s, x) => s + x, 0); const pct = spendMoney > 0 ? Math.round(sp / spendMoney * 100) : 0; return { v: pct + "%", l: "spent", c: pct > 100 ? C.down : pct >= 90 ? C.warn : C.up }; }
+              case "grow": { const rows = calcGrowthLib(principal, monthly, years, rate); const end = rows.length ? rows[rows.length - 1].balance : principal; return { v: fmtK(end), l: `in ${years}y` }; }
+              case "health": return { v: String(healthScore), l: "/ 100", c: healthBand.c };
+              case "goals": return { v: String(goals.length), l: goals.length === 1 ? "goal" : "goals" };
+              case "subs": return { v: fmt(subsMonthlyLib(subs)), l: "/mo" };
+              case "debt": return totalLiab > 0 ? { v: fmtK(totalLiab), l: "owed", c: C.down } : { v: "0", l: "debt-free", c: C.up };
+              case "fire": return { v: fmtK(spendMoney * 12 * 25), l: "target" };
+              case "emergency": { const mo = spendMoney > 0 ? totalAssets / spendMoney : 0; return { v: mo.toFixed(mo < 10 ? 1 : 0), l: "mo covered", c: mo >= 6 ? C.up : mo >= 3 ? C.warn : C.down }; }
+              default: return null; // advisor
+            }
+          };
+          const pinned = toolPins.filter(id => META[id]);
+          const rest = TOOLS.map(t => t[0]).filter(id => !pinned.includes(id));
+          const togglePin = id => setToolPins(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id]);
+          const toggleHide = id => setToolHidden(h => h.includes(id) ? h.filter(x => x !== id) : [...h, id]);
+          const movePin = (id, dir) => { const i = pinned.indexOf(id), j = i + dir; if (j < 0 || j >= pinned.length) return; const n = [...pinned]; [n[i], n[j]] = [n[j], n[i]]; setToolPins(n); };
+          const Star = ({ on }) => <svg width="17" height="17" viewBox="0 0 24 24" fill={on ? C.accent : "none"} stroke={on ? C.accent : C.hint} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.1 8.6 22 9.3 16.8 14 18.3 21 12 17.3 5.7 21 7.2 14 2 9.3 8.9 8.6" /></svg>;
+          const ctrl = dis => ({ width: 30, height: 28, borderRadius: "8px", border: "0.5px solid " + C.border, background: C.surface, color: dis ? C.hint : C.text, fontSize: "13px", fontWeight: 700, cursor: dis ? "default" : "pointer", opacity: dis ? 0.45 : 1, flexShrink: 0 });
+
+          // Big stat card (for pinned tools).
+          const PinCard = (id) => { const s = stat(id); return (
+            <button key={id} onClick={() => !toolEdit && setToolView(id)} style={{ textAlign: "left", cursor: toolEdit ? "default" : "pointer", background: C.cardGrad, border: "0.5px solid " + C.border, boxShadow: C.shadow + ", " + C.hi, borderRadius: "16px", padding: "14px", display: "flex", flexDirection: "column", gap: "10px", minHeight: 104 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <span style={{ width: 34, height: 34, borderRadius: "10px", background: C.accent + "1c", color: C.accent, display: "flex", alignItems: "center", justifyContent: "center" }}><ToolIcon name={id} /></span>
+                {toolEdit
+                  ? <span style={{ display: "flex", gap: "4px" }}><button onClick={e => { e.stopPropagation(); movePin(id, -1); }} style={ctrl(pinned.indexOf(id) === 0)}>↑</button><button onClick={e => { e.stopPropagation(); movePin(id, 1); }} style={ctrl(pinned.indexOf(id) === pinned.length - 1)}>↓</button><button onClick={e => { e.stopPropagation(); togglePin(id); }} style={{ ...ctrl(false), width: "auto", padding: "0 6px" }}><Star on /></button></span>
+                  : <span onClick={e => { e.stopPropagation(); togglePin(id); }} style={{ cursor: "pointer", lineHeight: 0 }}><Star on /></span>}
+              </div>
+              <div style={{ marginTop: "auto" }}>
+                {s && <div style={{ fontSize: "22px", fontWeight: 800, letterSpacing: "-0.02em", color: s.c || C.text, lineHeight: 1 }}>{s.v} <span style={{ fontSize: "12px", fontWeight: 600, color: C.hint }}>{s.l}</span></div>}
+                <div style={{ fontSize: "13px", fontWeight: 700, color: C.text, marginTop: s ? "4px" : 0 }}>{META[id].label}</div>
+              </div>
+            </button>
+          ); };
+
+          // Compact row (for the full list).
+          const Row = (id) => { const s = stat(id); const hidden = toolHidden.includes(id); if (hidden && !toolEdit) return null; return (
+            <button key={id} onClick={() => !toolEdit && setToolView(id)} style={{ width: "100%", textAlign: "left", cursor: toolEdit ? "default" : "pointer", background: C.cardGrad, border: "0.5px solid " + C.border, boxShadow: C.shadow + ", " + C.hi, borderRadius: "16px", padding: "13px 15px", marginBottom: "10px", display: "flex", alignItems: "center", gap: "12px", opacity: hidden ? 0.45 : 1 }}>
+              <span style={{ width: 38, height: 38, borderRadius: "11px", flexShrink: 0, background: C.accent + "1c", color: C.accent, display: "flex", alignItems: "center", justifyContent: "center" }}><ToolIcon name={id} /></span>
+              <span style={{ flex: 1, minWidth: 0 }}>
+                <span style={{ display: "block", fontSize: "14px", fontWeight: 700, color: C.text }}>{META[id].label}</span>
+                {showHints && <span style={{ display: "block", fontSize: "12px", color: C.hint, marginTop: "2px" }}>{META[id].desc}</span>}
+              </span>
+              {toolEdit ? (
+                <span style={{ display: "flex", gap: "6px", flexShrink: 0 }}>
+                  <span onClick={e => { e.stopPropagation(); togglePin(id); }} style={ctrl(false)}><Star on={pinned.includes(id)} /></span>
+                  <button onClick={e => { e.stopPropagation(); toggleHide(id); }} style={{ ...ctrl(false), width: "auto", padding: "0 10px", color: hidden ? C.accent : C.sub }}>{hidden ? "Show" : "Hide"}</button>
                 </span>
-                <span style={{ flex: 1, minWidth: 0 }}>
-                  <span style={{ display: "block", fontSize: "14px", fontWeight: 700, color: C.text }}>{label}</span>
-                  {showHints && <span style={{ display: "block", fontSize: "12px", color: C.hint, marginTop: "2px" }}>{desc}</span>}
-                </span>
-                <span style={{ color: C.hint, fontSize: "16px", flexShrink: 0 }}>›</span>
-              </button>
-            ))}
-          </div>
-          <div style={{ fontSize: "11px", color: C.hint, textAlign: "center", padding: "6px 0" }}>More tools coming soon.</div>
-        </>}
+              ) : (() => { const s2 = stat(id); return s2 ? <span style={{ fontSize: "14px", fontWeight: 800, color: s2.c || C.text, flexShrink: 0 }}>{s2.v}<span style={{ fontSize: "11px", fontWeight: 600, color: C.hint }}> {s2.l}</span></span> : <span style={{ color: C.hint, fontSize: "16px", flexShrink: 0 }}>›</span>; })()}
+            </button>
+          ); };
+
+          return (
+            <>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+                {toolEdit ? <span style={{ fontSize: "12px", color: C.hint }}>Pin ☆ favorites, reorder, or hide tools.</span> : <span style={{ fontSize: "20px", fontWeight: 800, letterSpacing: "-0.02em", color: C.text }}>Tools</span>}
+                <button onClick={() => setToolEdit(e => !e)} style={{ padding: "7px 15px", borderRadius: "10px", border: "0.5px solid " + (toolEdit ? C.accent : C.border), background: toolEdit ? C.accent : C.surface, color: toolEdit ? C.onAccent : C.sub, fontSize: "12px", fontWeight: 700, cursor: "pointer" }}>{toolEdit ? "✓ Done" : "✎ Customize"}</button>
+              </div>
+
+              {pinned.length > 0 && <>
+                <div style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: C.hint, margin: "2px 0 8px" }}>Pinned</div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "10px", marginBottom: "18px" }}>
+                  {pinned.map(PinCard)}
+                </div>
+              </>}
+
+              <div data-tour="toolgrid">
+                <div style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: C.hint, margin: "2px 0 8px" }}>{pinned.length > 0 ? "More tools" : "Tools"}</div>
+                {rest.map(Row)}
+              </div>
+              {!toolEdit && <div style={{ fontSize: "11px", color: C.hint, textAlign: "center", padding: "6px 0" }}>Tip: tap ☆ on any tool to pin it up top.</div>}
+            </>
+          );
+        })()}
 
         {/* ── AI COACH (Tools) ── */}
         {tab === "tools" && toolView === "advisor" && <>
@@ -2326,7 +2392,7 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
           {[["feed","Feed"],["invest","Portfolio"],["tools","Tools"],["profile","Profile"]].map(([id, lbl]) => {
             const active = tab === id;
             return (
-              <button key={id} data-tour={"nav-" + id} onClick={() => { setTab(id); if (id === "tools") setToolView("menu"); if (id === "invest") setHomeView("dash"); }} style={{
+              <button key={id} data-tour={"nav-" + id} onClick={() => { setTab(id); if (id === "tools") { setToolView("menu"); setToolEdit(false); } if (id === "invest") setHomeView("dash"); }} style={{
                 flex: 1, padding: "8px 2px", borderRadius: "13px", border: "none", cursor: "pointer",
                 background: active ? C.accent + "1f" : "transparent", color: active ? C.accent : C.sub,
                 fontWeight: active ? 700 : 500, fontSize: "10px",
