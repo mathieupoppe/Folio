@@ -11,8 +11,14 @@ import {
   NW_MILESTONES,
   milestoneProgress,
   dueSubscriptionCharges,
+  spendByCategory,
 } from "./lib/finance";
 import Advisor from "./Advisor";
+import Feed from "./Feed";
+import Profile from "./Profile";
+import { getProfile, getUserPosts, getFeed, createPost, updatePost, deletePost, updateProfile, migrateLocalToTables, archivePost, purgeExpiredDeleted } from "./social";
+import { SavedView } from "./Saved";
+import { ArchiveView, RemovedView, ActivityView } from "./Content";
 import Watchlist, { WatchlistWidget } from "./Watchlist";
 import HoldingsEditor from "./Holdings";
 import BudgetTool, { budgetPeriod } from "./Budget";
@@ -456,13 +462,12 @@ function Reveal({ cta, children, accent }) {
 // relevant tab and highlights the element it describes (via [data-tour="…"]).
 // Auto-shows on first run; relaunchable from Settings.
 const TOUR_STEPS = [
-  { emoji: "👋", title: "Welcome to Folio", body: "Your money — planned, grown, and tracked in one calm place. Here's a quick guided tour.", tab: "home", target: null },
-  { emoji: "📊", title: "Your net worth", body: "This card tracks everything you own minus what you owe, charted over time.", tab: "home", target: "networth" },
-  { emoji: "🎛️", title: "Make it yours", body: "Tap Customize to reorder your dashboard cards or hide the ones you don't need.", tab: "home", target: "customize" },
-  { emoji: "✨", title: "AI money coach", body: "Get an instant read on your finances — plus a deeper AI analysis with one tap.", tab: "home", target: "coach" },
+  { emoji: "👋", title: "Welcome to Folio", body: "Finance, but social. A feed for money wins, motivation and learning — plus the tools to track your own. Quick tour!", tab: "feed", target: "nav-feed" },
+  { emoji: "📰", title: "Your feed", body: "Posts, videos and stories about investing, saving and money mindset. Tap a profile to explore.", tab: "feed", target: null },
+  { emoji: "📊", title: "Portfolio", body: "Your private overview: net worth charted over time, holdings, watchlist and your AI coach.", tab: "invest", target: "networth" },
+  { emoji: "✨", title: "AI money coach", body: "Get an instant read on your finances — plus a deeper AI analysis with one tap.", tab: "invest", target: "coach" },
   { emoji: "🧰", title: "Tools", body: "A split planner, growth & FIRE simulators, debt payoff and more — each explains itself as you go.", tab: "tools", target: "toolgrid" },
-  { emoji: "🧾", title: "Activity", body: "Log deposits and withdrawals from here to watch your balance build over time — tap “+ Add” any time.", tab: "home", target: "recent" },
-  { emoji: "⚙️", title: "Everything else", body: "Themes, currency, your stats, and this tour all live under More. You're all set!", tab: "more", target: "nav-more" },
+  { emoji: "👤", title: "Your profile", body: "Your finance identity — avatar, bio, followers and posts. Settings live behind the gear, top-right. You're all set!", tab: "profile", target: "nav-profile" },
 ];
 function Tutorial({ onClose, onNavigate }) {
   const [i, setI] = useState(0);
@@ -576,6 +581,9 @@ const ICONS = {
   more:  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="5" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="19" cy="12" r="1.4"/></svg>,
   home:  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>,
   tools: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>,
+  feed:    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1"/></svg>,
+  invest:  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>,
+  profile: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1"/></svg>,
 };
 
 // Small cloud-sync status pill shown in the header.
@@ -640,7 +648,7 @@ const isApp = typeof window !== "undefined" && (
 export default function Folio({ session, onSignOut, onDeleteAccount, theme, setTheme }) {
   const userId = session?.user?.id;
   const [deleting, setDeleting] = useState(false);
-  const [tab, setTab] = useState("home");
+  const [tab, setTab] = useState("feed");
   const [moreView, setMoreView] = useState("menu"); // sub-page within the More tab
   const [toolView, setToolView] = useState("menu"); // sub-page within the Tools tab
   const [homeView, setHomeView] = useState("dash"); // sub-page within the Home tab
@@ -704,6 +712,14 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
 
   // profile (name)
   const [profile, setProfile] = useState(s0.profile ?? { first: "", last: "" });
+  // Legacy local posts (pre-backend). Kept only to migrate into the tables once.
+  const [posts, setPosts] = useState(s0.posts ?? []);
+  // Saved-post playlists ("collections"). [{ id, name, items: [snapshot] }]
+  const [playlists, setPlaylists] = useState(s0.playlists ?? []);
+  // Live social state, backed by the Supabase social tables (Phase 1).
+  const [socialProfile, setSocialProfile] = useState(null); // { handle, display_name, bio, avatar_url, *_count }
+  const [myPosts, setMyPosts]   = useState([]); // this user's posts, table-backed
+  const [feedPosts, setFeedPosts] = useState([]); // home feed (own + followed)
 
   // dashboard layout: widget order + hidden set (persisted), plus transient edit mode
   const [dashOrder,  setDashOrder]  = useState(s0.dashOrder  ?? DEFAULT_DASH);
@@ -727,6 +743,7 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
   const [logType,   setLogType]   = useState("deposit");
   const [logAmount, setLogAmount] = useState("");
   const [logNote,   setLogNote]   = useState("");
+  const [logCat,    setLogCat]    = useState(""); // spending category for withdrawals
   const persist = e => setEntries(e);
 
   // apply a full data blob to every piece of state
@@ -753,6 +770,8 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
     if (Array.isArray(st.dashOrder))   setDashOrder(st.dashOrder);
     if (Array.isArray(st.dashHidden))  setDashHidden(st.dashHidden);
     if (Array.isArray(st.watchlist))   setWatchlist(st.watchlist);
+    if (Array.isArray(st.posts))       setPosts(st.posts);
+    if (Array.isArray(st.playlists))   setPlaylists(st.playlists);
     if (typeof st.subTracking === "boolean") setSubTracking(st.subTracking);
     if (st.profile)  setProfile(st.profile);
     if (Array.isArray(d.entries)) setEntries(d.entries);
@@ -779,7 +798,7 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
 
   // local cache always; debounced, conflict-aware cloud save once hydrated
   useEffect(() => {
-    const blob = { settings: { income, spendPct, investBuckets, spendBuckets, principal, monthly, years, rate, assets, liabilities, nwHistory, goals, subs, profile, dashOrder, dashHidden, subTracking, watchlist, holdings, budget, debts, debtBudget, debtStrategy }, entries };
+    const blob = { settings: { income, spendPct, investBuckets, spendBuckets, principal, monthly, years, rate, assets, liabilities, nwHistory, goals, subs, profile, posts, playlists, dashOrder, dashHidden, subTracking, watchlist, holdings, budget, debts, debtBudget, debtStrategy }, entries };
     try { localStorage.setItem(LOCAL_KEY, JSON.stringify(blob)); }
     catch (e) { console.warn("Folio: couldn't save to local storage —", e?.message || e); }
     if (!hydrated.current || !userId) return;
@@ -800,12 +819,84 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
       }).catch(() => setSync("error"));
     }, 800);
     return () => clearTimeout(t);
-  }, [income, spendPct, investBuckets, spendBuckets, principal, monthly, years, rate, assets, liabilities, nwHistory, goals, subs, profile, dashOrder, dashHidden, subTracking, watchlist, holdings, budget, debts, debtBudget, debtStrategy, entries, userId, retryNonce]);
+  }, [income, spendPct, investBuckets, spendBuckets, principal, monthly, years, rate, assets, liabilities, nwHistory, goals, subs, profile, posts, playlists, dashOrder, dashHidden, subTracking, watchlist, holdings, budget, debts, debtBudget, debtStrategy, entries, userId, retryNonce]);
+
+  // ── Social (Phase 1): load table-backed profile + posts + feed; migrate once ──
+  const refreshSocial = async () => {
+    if (!userId) return;
+    const [sp, mp] = await Promise.all([getProfile(userId), getUserPosts(userId)]);
+    setSocialProfile(sp); setMyPosts(mp);
+    setFeedPosts(await getFeed(userId));
+  };
+  useEffect(() => {
+    if (!userId) return;
+    let alive = true;
+    (async () => {
+      try {
+        const migKey = "folio-social-migrated-" + userId;
+        if (!localStorage.getItem(migKey)) {
+          if (posts.length || profile.first || profile.last || profile.bio || profile.handle) {
+            await migrateLocalToTables(userId, { profile, posts });
+          }
+          localStorage.setItem(migKey, "1");
+        }
+        if (!alive) return;
+        purgeExpiredDeleted(userId).catch(() => {}); // clear 30-day-old trash
+        await refreshSocial();
+      } catch (e) { console.warn("social load failed:", e?.message || e); }
+    })();
+    return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId]);
+
+  // Mirror the editable identity (name/handle/bio/avatar) from the local profile
+  // blob → the public profiles table, debounced. This means editing your name in
+  // Settings → Account OR on the Profile page updates your public @handle/name.
+  useEffect(() => {
+    if (!userId || !socialProfile) return;
+    const t = setTimeout(() => {
+      const display_name = `${profile.first || ""} ${profile.last || ""}`.trim();
+      const handle = profile.handle ? profile.handle.replace(/^@/, "") : undefined;
+      const patch = {};
+      if (display_name !== (socialProfile.display_name || "")) patch.display_name = display_name;
+      if ((profile.bio || "") !== (socialProfile.bio || "")) patch.bio = profile.bio || "";
+      if (profile.avatar !== undefined && profile.avatar !== socialProfile.avatar_url) patch.avatar_url = profile.avatar;
+      if (handle && /^[A-Za-z0-9_.]{3,20}$/.test(handle) && handle !== socialProfile.handle) patch.handle = handle;
+      if (!Object.keys(patch).length) return;
+      updateProfile(userId, patch).then(p => p && setSocialProfile(p)).catch(e => console.warn("profile sync:", e?.message || e));
+    }, 700);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile.first, profile.last, profile.bio, profile.avatar, profile.handle, userId]);
+
+  // Table-backed post handlers (passed to Profile + Feed).
+  const onCreatePost = async ({ caption, image }) => { await createPost(userId, { caption, image_url: image || null }); await refreshSocial(); };
+  const onUpdatePost = async (id, { caption, image }) => { await updatePost(id, { caption, image_url: image || null }); await refreshSocial(); };
+  const onDeletePost = async (id) => { await deletePost(id); await refreshSocial(); };
+  const onArchivePost = async (id) => { await archivePost(id); await refreshSocial(); };
+  const setAllowReplies = async (v) => { try { const p = await updateProfile(userId, { allow_replies: v }); if (p) setSocialProfile(p); } catch (e) { window.alert("Couldn't update: " + (e?.message || e)); } };
+
+  // Map table rows → the shape Feed/Profile already expect.
+  const toCard = p => ({ id: p.id, caption: p.caption, image: p.image_url, createdAt: p.created_at, like_count: p.like_count, comment_count: p.comment_count });
+
+  // ── Saved posts / playlists ───────────────────────────────────────────────
+  const createPlaylist = (name) => { const id = "pl" + Date.now(); setPlaylists(p => [...p, { id, name: name.trim() || "Untitled", items: [] }]); return id; };
+  const deletePlaylist = (id) => setPlaylists(p => p.filter(x => x.id !== id));
+  const renamePlaylist = (id, name) => setPlaylists(p => p.map(x => x.id === id ? { ...x, name } : x));
+  // Toggle a post snapshot's membership in one playlist.
+  const togglePlaylistPost = (playlistId, snap) => setPlaylists(p => p.map(pl => {
+    if (pl.id !== playlistId) return pl;
+    const has = pl.items.some(it => it.id === snap.id);
+    return { ...pl, items: has ? pl.items.filter(it => it.id !== snap.id) : [{ ...snap, savedAt: Date.now() }, ...pl.items] };
+  }));
+  const isPostSaved = (postId) => playlists.some(pl => pl.items.some(it => it.id === postId));
 
   const addEntry = () => {
     const amt = parseFloat(logAmount);
     if (!amt || amt <= 0) return;
-    persist([{ id: Date.now(), date: logDate, type: logType, amount: amt, note: logNote.trim() }, ...entries].sort((a,b) => b.date.localeCompare(a.date)));
+    const entry = { id: Date.now(), date: logDate, type: logType, amount: amt, note: logNote.trim() };
+    if (logType === "withdrawal" && logCat) entry.cat = logCat;
+    persist([entry, ...entries].sort((a,b) => b.date.localeCompare(a.date)));
     setLogAmount(""); setLogNote("");
   };
 
@@ -967,12 +1058,16 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
     totalAssets, totalLiab, netWorth, healthScore,
     nwHistory: nwHistory.slice(-30),
     transactions: entries.length,
-    budget: (budget?.period === budgetPeriod() && spendMoney > 0) ? {
-      month: budget.period,
-      categories: spendBuckets.filter(b => (b.pct || 0) > 0).map(b => ({
-        label: b.label, budgeted: Math.round(spendMoney * (b.pct / 100)), spent: Math.round(budget.spent?.[b.id] || 0),
-      })),
-    } : null,
+    budget: (spendMoney > 0) ? (() => {
+      const period = budgetPeriod();
+      const sbc = spendByCategory(entries, period);
+      return {
+        month: period,
+        categories: spendBuckets.filter(b => (b.pct || 0) > 0).map(b => ({
+          label: b.label, budgeted: Math.round(spendMoney * (b.pct / 100)), spent: Math.round(sbc[b.id] || 0),
+        })),
+      };
+    })() : null,
   };
 
   // keep live prices for holdings fresh so net worth tracks the market
@@ -1082,8 +1177,28 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
       {/* Pages */}
       <div className="shell" style={{ padding: "0.8rem 1rem 5rem" }}>
 
-        {/* ── HOME ── */}
-        {tab === "home" && homeView === "dash" && (() => {
+        {/* ── FEED (social) ── */}
+        {tab === "feed" && (
+          <Feed profile={profile} posts={feedPosts.map(toCard)} email={session?.user?.email}
+            playlists={playlists} onToggleSave={togglePlaylistPost} onCreatePlaylist={createPlaylist} isSaved={isPostSaved}
+            currentUserId={userId} allowReplies={socialProfile?.allow_replies ?? true}
+            onCompose={() => setTab("profile")} onOpenProfile={() => setTab("profile")} />
+        )}
+
+        {/* ── PROFILE ── */}
+        {tab === "profile" && (
+          <Profile
+            profile={profile} setProfile={setProfile}
+            posts={myPosts.map(toCard)}
+            counts={{ posts: myPosts.length, followers: socialProfile?.followers_count ?? 0, following: socialProfile?.following_count ?? 0 }}
+            onCreatePost={onCreatePost} onUpdatePost={onUpdatePost} onDeletePost={onDeletePost} onArchivePost={onArchivePost}
+            currentUserId={userId} allowReplies={socialProfile?.allow_replies ?? true}
+            email={session?.user?.email}
+            onSettings={() => { setTab("more"); setMoreView("menu"); }} />
+        )}
+
+        {/* ── INVEST (overview) ── */}
+        {tab === "invest" && homeView === "dash" && (() => {
           const W = {
             netWorth: (
               <Card className="span2">
@@ -1265,7 +1380,7 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
         })()}
 
         {/* ── HOME → NET WORTH EDITOR ── */}
-        {tab === "home" && homeView === "networth" && <>
+        {tab === "invest" && homeView === "networth" && <>
           <BackBar title="Net worth" onBack={() => setHomeView("dash")} />
           <Card>
             <Label text="Net worth" hint="Everything you own, minus everything you owe." />
@@ -1468,7 +1583,7 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
             <button style={{ padding: "10px", borderRadius: "11px", border: "none", background: C.accent, color: C.onAccent, fontWeight: 700, fontSize: "13px", cursor: "default" }}>This month</button>
           </div>
           {showHints && <div style={{ fontSize: "11px", color: C.hint, lineHeight: 1.5, margin: "-4px 2px 12px" }}>🔌 Enter spending manually for now — it'll auto-fill once you connect a bank.</div>}
-          <BudgetTool spendBuckets={spendBuckets} spendMoney={spendMoney} budget={budget} setBudget={setBudget} currency={theme?.currency || "EUR"} showHints={showHints} onPlan={() => setToolView("split")} />
+          <BudgetTool spendBuckets={spendBuckets} spendMoney={spendMoney} entries={entries} currency={theme?.currency || "EUR"} showHints={showHints} onPlan={() => setToolView("split")} onLog={() => { setTab("invest"); setHomeView("activity"); setLogType("withdrawal"); setLogAddOpen(true); }} />
         </>}
 
         {/* ── GROW (Tools) ── */}
@@ -1749,7 +1864,7 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
         </>}
 
         {/* ── LOG ── */}
-        {tab === "home" && homeView === "activity" && <>
+        {tab === "invest" && homeView === "activity" && <>
           <BackBar title="Activity" onBack={() => setHomeView("dash")} />
           {entries.length >= 2 ? (
             <Card>
@@ -1797,6 +1912,24 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
                   <div style={{ fontSize: "11px", color: C.hint, marginBottom: "4px" }}>Amount ({curSymbol()})</div>
                   <input type="number" placeholder="e.g. 200" value={logAmount} onChange={e => setLogAmount(e.target.value)} aria-label="Transaction amount" min="0" style={inputStyle} />
                 </div>
+                {logType === "withdrawal" && spendBuckets.filter(b => (b.pct || 0) > 0).length > 0 && (
+                  <div style={{ marginBottom: "8px" }}>
+                    <div style={{ fontSize: "11px", color: C.hint, marginBottom: "4px" }}>Category <span style={{ color: C.hint }}>(feeds your budget)</span></div>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                      {spendBuckets.filter(b => (b.pct || 0) > 0).map(b => (
+                        <button key={b.id} onClick={() => setLogCat(logCat === b.id ? "" : b.id)} style={{
+                          display: "flex", alignItems: "center", gap: "6px", padding: "7px 11px", borderRadius: "999px", cursor: "pointer", fontSize: "12px", fontWeight: 600,
+                          border: "0.5px solid " + (logCat === b.id ? C.accent : C.border),
+                          background: logCat === b.id ? C.accent : C.surface,
+                          color: logCat === b.id ? C.onAccent : C.sub,
+                        }}>
+                          <span style={{ width: 8, height: 8, borderRadius: "50%", background: b.color || C.accent, flexShrink: 0 }} />
+                          {b.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 <div style={{ marginBottom: "14px" }}>
                   <div style={{ fontSize: "11px", color: C.hint, marginBottom: "4px" }}>Note <span style={{ color: C.hint }}>(optional)</span></div>
                   <input type="text" placeholder="e.g. Monthly VUAA buy" value={logNote} onChange={e => setLogNote(e.target.value)} aria-label="Transaction note" style={inputStyle} />
@@ -1825,7 +1958,13 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
                       <span style={{ fontWeight: 600, fontSize: "14px", color: e.type === "deposit" ? C.up : C.down }}>{e.type === "deposit" ? "+" : "−"}{fmt(e.amount)}</span>
                       <span style={{ fontSize: "11px", color: C.hint }}>{e.date}</span>
                     </div>
-                    {e.note && <div style={{ fontSize: "11px", color: C.hint, marginTop: "2px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{e.note}</div>}
+                    <div style={{ display: "flex", alignItems: "center", gap: "6px", marginTop: "2px", overflow: "hidden" }}>
+                      {(() => { const c = e.cat && spendBuckets.find(b => b.id === e.cat); return c ? (
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: "4px", flexShrink: 0, fontSize: "10px", fontWeight: 700, color: C.sub, background: C.surface, border: "0.5px solid " + C.border, borderRadius: "999px", padding: "2px 7px" }}>
+                          <span style={{ width: 6, height: 6, borderRadius: "50%", background: c.color || C.accent }} />{c.label}
+                        </span>) : null; })()}
+                      {e.note && <span style={{ fontSize: "11px", color: C.hint, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{e.note}</span>}
+                    </div>
                   </div>
                   <button onClick={() => persist(entries.filter(x => x.id !== e.id))} style={{ background: "none", border: "none", color: C.hint, cursor: "pointer", padding: "4px", fontSize: "14px" }}>✕</button>
                 </div>
@@ -1852,12 +1991,14 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
             </div>
           </Card>
           <Card style={{ paddingTop: "2px", paddingBottom: "2px" }}>
+            <NavRow label="Content" desc="Activity, saved, archive & deleted posts" onClick={() => setMoreView("content")} />
             <NavRow label="Account" desc="Name, language, currency, delete" onClick={() => setMoreView("account")} />
             <NavRow label="Membership" desc="Your plan & upgrade" onClick={() => setMoreView("membership")} />
             <NavRow label="Notifications" desc="Reminders & alerts" onClick={() => setMoreView("notifications")} />
             <NavRow label="Appearance" desc="Theme & accent color" onClick={() => setMoreView("appearance")} />
             <NavRow label="Your stats" desc="Time in app & fun numbers" onClick={() => setMoreView("stats")} />
             <NavRow label="Data & backup" desc="Export or import your data" onClick={() => setMoreView("data")} />
+            <NavRow label="Privacy" desc="Comment replies & who can interact" onClick={() => setMoreView("privacysettings")} />
             <NavRow label="Security" desc="Passcode & Face ID" onClick={() => setMoreView("security")} />
             <NavRow label="Tutorial" desc="A quick guided tour of Folio" onClick={() => setShowTour(true)} />
             <NavRow label="Help & support" desc="FAQs & contact" onClick={() => setMoreView("help")} />
@@ -1899,6 +2040,60 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
                 {deleting ? "Deleting…" : "Delete account"}
               </button>
             </Card>
+          </>}
+
+          {moreView === "content" && <>
+            <BackBar title="Content" onBack={() => setMoreView("menu")} />
+            <Card style={{ paddingTop: "2px", paddingBottom: "2px" }}>
+              <NavRow label="Activity" desc="Likes, comments & interactions you got" onClick={() => setMoreView("activity")} />
+              {(() => { const n = playlists.reduce((s, pl) => s + pl.items.length, 0); return <NavRow label="Saved" desc={`${n} post${n === 1 ? "" : "s"} · ${playlists.length} playlist${playlists.length === 1 ? "" : "s"}`} onClick={() => setMoreView("saved")} />; })()}
+              <NavRow label="Archive" desc="Posts hidden from your profile" onClick={() => setMoreView("archive")} />
+              <NavRow label="Recently deleted" desc="Restore posts within 30 days" onClick={() => setMoreView("removed")} />
+            </Card>
+          </>}
+
+          {moreView === "activity" && <>
+            <BackBar title="Activity" onBack={() => setMoreView("content")} />
+            <ActivityView userId={userId} />
+          </>}
+
+          {moreView === "saved" && <>
+            <BackBar title="Saved" onBack={() => setMoreView("content")} />
+            <Card>
+              <SavedView playlists={playlists} onToggle={togglePlaylistPost} onCreate={createPlaylist} onRename={renamePlaylist} onDelete={deletePlaylist} />
+            </Card>
+          </>}
+
+          {moreView === "archive" && <>
+            <BackBar title="Archive" onBack={() => setMoreView("content")} />
+            <Card>
+              <ArchiveView userId={userId} onChanged={refreshSocial} />
+            </Card>
+          </>}
+
+          {moreView === "removed" && <>
+            <BackBar title="Recently deleted" onBack={() => setMoreView("content")} />
+            <Card>
+              <RemovedView userId={userId} onChanged={refreshSocial} />
+            </Card>
+          </>}
+
+          {moreView === "privacysettings" && <>
+            <BackBar title="Privacy" onBack={() => setMoreView("menu")} />
+            <Card>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px" }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: "14px", fontWeight: 700, color: C.text }}>Allow replies to comments</div>
+                  <div style={{ fontSize: "12px", color: C.hint, marginTop: "2px", lineHeight: 1.5 }}>When off, people can still comment on your posts but can't reply to comments.</div>
+                </div>
+                {(() => { const on = socialProfile?.allow_replies ?? true; return (
+                  <button role="switch" aria-checked={on} aria-label="Allow replies" onClick={() => setAllowReplies(!on)} style={{ width: 46, height: 28, borderRadius: "999px", border: "none", cursor: "pointer", flexShrink: 0, background: on ? C.up : C.border, position: "relative", transition: "background .2s" }}>
+                    <span style={{ position: "absolute", top: 3, left: on ? 21 : 3, width: 22, height: 22, borderRadius: "50%", background: "#fff", transition: "left .2s" }} />
+                  </button>
+                ); })()}
+              </div>
+            </Card>
+            <div style={{ fontSize: "11px", color: C.hint, textAlign: "center", padding: "4px 8px", lineHeight: 1.6 }}>More privacy controls (who can comment, mentions) arrive with the social rollout.</div>
           </>}
 
           {moreView === "language" && <>
@@ -2128,10 +2323,10 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
       {/* Bottom tab bar */}
       <div style={{ position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 40, background: C.glass, backdropFilter: "blur(20px) saturate(160%)", WebkitBackdropFilter: "blur(20px) saturate(160%)", borderTop: "0.5px solid " + C.border, boxShadow: "0 -12px 30px -18px rgba(0,0,0,0.6)", paddingBottom: "env(safe-area-inset-bottom)" }}>
         <div style={{ maxWidth: 440, margin: "0 auto", display: "flex", gap: "4px", padding: "8px 10px" }}>
-          {[["home","Home"],["tools","Tools"],["more","More"]].map(([id, lbl]) => {
+          {[["feed","Feed"],["invest","Portfolio"],["tools","Tools"],["profile","Profile"]].map(([id, lbl]) => {
             const active = tab === id;
             return (
-              <button key={id} data-tour={"nav-" + id} onClick={() => { setTab(id); if (id === "more") setMoreView("menu"); if (id === "tools") setToolView("menu"); if (id === "home") setHomeView("dash"); }} style={{
+              <button key={id} data-tour={"nav-" + id} onClick={() => { setTab(id); if (id === "tools") setToolView("menu"); if (id === "invest") setHomeView("dash"); }} style={{
                 flex: 1, padding: "8px 2px", borderRadius: "13px", border: "none", cursor: "pointer",
                 background: active ? C.accent + "1f" : "transparent", color: active ? C.accent : C.sub,
                 fontWeight: active ? 700 : 500, fontSize: "10px",
@@ -2145,7 +2340,7 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
         </div>
       </div>
 
-      {showTour && <Tutorial onClose={closeTour} onNavigate={(t) => { setTab(t); if (t === "more") setMoreView("menu"); if (t === "tools") setToolView("menu"); if (t === "home") setHomeView("dash"); }} />}
+      {showTour && <Tutorial onClose={closeTour} onNavigate={(t) => { setTab(t); if (t === "more") setMoreView("menu"); if (t === "tools") setToolView("menu"); if (t === "invest") setHomeView("dash"); }} />}
       {pinModal && <PinModal key={pinModal.mode + "|" + pinModal.title} mode={pinModal.mode} title={pinModal.title} onDone={pinModal.onDone} onClose={() => setPinModal(null)} />}
     </div>
     </HintCtx.Provider>

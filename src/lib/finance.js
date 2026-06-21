@@ -144,6 +144,21 @@ export function debtPayoff(debts, budget, strategy = "avalanche") {
   return { months: month, totalInterest: Math.round(totalInterest), totalPaid: Math.round(totalPaid), payoffOrder, feasible: month < GUARD };
 }
 
+// Sum of withdrawal (spending) transactions in a given month, grouped by their
+// category id. period is "YYYY-MM". Entries without a `cat` are grouped under
+// "__none". Deposits and other months are ignored. This is what makes budget
+// vs actual automatic — spend is derived from the log, never typed twice.
+export function spendByCategory(entries, period) {
+  const out = {};
+  for (const e of entries || []) {
+    if (e.type !== "withdrawal") continue;
+    if (!e.date || e.date.slice(0, 7) !== period) continue;
+    const key = e.cat || "__none";
+    out[key] = (out[key] || 0) + (e.amount || 0);
+  }
+  return out;
+}
+
 // Clamp a numeric input to a sane range; returns fallback for non-numbers.
 export function clampNumber(value, { min = -Infinity, max = Infinity, fallback = 0 } = {}) {
   const n = typeof value === "number" ? value : parseFloat(value);

@@ -61,7 +61,8 @@
       "Bash(brew install *)",
       "Bash(grep -E '\\(^|/\\)package\\\\.json$')",
       "Bash(git commit *)",
-      "Bash(git push *)"
+      "Bash(git push *)",
+      "Bash(npx vitest *)"
     ]
   }
 }

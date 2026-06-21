@@ -11,7 +11,31 @@ import {
   clampNumber,
   dueSubscriptionCharges,
   debtPayoff,
+  spendByCategory,
 } from "./finance";
+
+describe("spendByCategory", () => {
+  const entries = [
+    { type: "withdrawal", date: "2026-06-03", amount: 40, cat: "food" },
+    { type: "withdrawal", date: "2026-06-10", amount: 12, cat: "food" },
+    { type: "withdrawal", date: "2026-06-15", amount: 30, cat: "fun" },
+    { type: "withdrawal", date: "2026-06-20", amount: 5 }, // uncategorized
+    { type: "deposit",    date: "2026-06-04", amount: 99, cat: "food" }, // deposits ignored
+    { type: "withdrawal", date: "2026-05-30", amount: 77, cat: "food" }, // other month ignored
+  ];
+  it("sums withdrawals per category for the month", () => {
+    const r = spendByCategory(entries, "2026-06");
+    expect(r.food).toBe(52);
+    expect(r.fun).toBe(30);
+    expect(r.__none).toBe(5);
+  });
+  it("returns empty for a month with no spend", () => {
+    expect(spendByCategory(entries, "2026-01")).toEqual({});
+  });
+  it("handles empty/undefined input", () => {
+    expect(spendByCategory(undefined, "2026-06")).toEqual({});
+  });
+});
 
 describe("calcGrowth", () => {
   it("returns one row per year", () => {
