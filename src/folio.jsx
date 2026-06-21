@@ -1440,7 +1440,7 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
             ["goals", "Goals", "Savings targets & progress"],
             ["subs", "Subscriptions", "Recurring costs & calendar"],
             ["debt", "Debt payoff", "Snowball vs avalanche plan"],
-            ["fire", "FIRE number", "What you need to retire"],
+            ["fire", "Retire early (FIRE)", "What you need to live off investments"],
             ["emergency", "Emergency fund", "Months of expenses covered"],
           ];
           const META = Object.fromEntries(TOOLS.map(t => [t[0], { label: t[1], desc: t[2] }]));
@@ -1454,7 +1454,7 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
               case "goals": return { v: String(goals.length), l: goals.length === 1 ? "goal" : "goals" };
               case "subs": return { v: fmt(subsMonthlyLib(subs)), l: "/mo" };
               case "debt": return totalLiab > 0 ? { v: fmtK(totalLiab), l: "owed", c: C.down } : { v: "0", l: "debt-free", c: C.up };
-              case "fire": return { v: fmtK(spendMoney * 12 * 25), l: "target" };
+              case "fire": return { v: fmtK(spendMoney * 12 * 25), l: "to be free" };
               case "emergency": { const mo = spendMoney > 0 ? totalAssets / spendMoney : 0; return { v: mo.toFixed(mo < 10 ? 1 : 0), l: "mo covered", c: mo >= 6 ? C.up : mo >= 3 ? C.warn : C.down }; }
               default: return null; // advisor
             }
@@ -1850,22 +1850,43 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
           let bal = 0, months = 0; const mr = blendedRet / 100 / 12;
           if (investable > 0 && fireNumber > 0) { while (bal < fireNumber && months < 1200) { bal = bal * (1 + mr) + investable; months++; } }
           const reachable = months > 0 && months < 1200;
+          const multiple = fireRate > 0 ? Math.round(100 / fireRate) : 25;
           return <>
-            <BackBar title="FIRE number" onBack={() => setToolView("menu")} />
+            <BackBar title="Retire early (FIRE)" onBack={() => setToolView("menu")} />
             <Card>
-              <Label text="Your FIRE number" hint="Invest this much and your investments can cover your spending forever." />
-              <div style={{ fontSize: "32px", fontWeight: 800, color: C.accent, letterSpacing: "-0.02em" }}>{fmtK(fireNumber)}</div>
-              <div style={{ fontSize: "12px", color: C.sub, marginTop: "4px" }}>Based on {fmt(annualExpenses)}/yr of spending.</div>
+              <div style={{ fontSize: "13px", color: C.sub, lineHeight: 1.6 }}>
+                <strong style={{ color: C.text }}>FIRE</strong> means <strong style={{ color: C.text }}>F</strong>inancial <strong style={{ color: C.text }}>I</strong>ndependence, <strong style={{ color: C.text }}>R</strong>etire <strong style={{ color: C.text }}>E</strong>arly. Once your investments are big enough, the returns alone cover your spending — so working becomes optional.
+              </div>
             </Card>
             <Card>
-              <Label text="Safe withdrawal rate" hint="4% is the classic rule. Lower = safer, bigger number." />
+              <Label text="The number you're aiming for" hint="Reach this and you could live off your investments." />
+              <div style={{ fontSize: "34px", fontWeight: 800, color: C.accent, letterSpacing: "-0.02em" }}>{fmtK(fireNumber)}</div>
+              <div style={{ fontSize: "13px", color: C.sub, marginTop: "6px", lineHeight: 1.55 }}>
+                Invested, this pays you about <strong style={{ color: C.text }}>{fmt(annualExpenses)}/year</strong> ({fmt(spendMoney)}/mo) — enough to cover your spending, without touching the original pot.
+              </div>
+            </Card>
+            <Card>
+              <Label text="How it's worked out" />
+              <div style={{ display: "flex", flexDirection: "column", gap: "8px", fontSize: "13px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: C.sub }}>You spend per year</span><span style={{ color: C.text, fontWeight: 700 }}>{fmt(annualExpenses)}</span></div>
+                <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: C.sub }}>Times {multiple} (at a {fireRate}% withdrawal)</span><span style={{ color: C.text, fontWeight: 700 }}>× {multiple}</span></div>
+                <div style={{ display: "flex", justifyContent: "space-between", borderTop: "0.5px solid " + C.border, paddingTop: "8px" }}><span style={{ color: C.text, fontWeight: 700 }}>Your FIRE number</span><span style={{ color: C.accent, fontWeight: 800 }}>{fmtK(fireNumber)}</span></div>
+              </div>
+            </Card>
+            <Card>
+              <Label text="Safe withdrawal rate" hint="How much you take out each year. 4% is the classic rule — lower is safer but needs a bigger pot." />
               <SliderRow label="Withdrawal rate" value={fireRate} min={3} max={6} step={0.5} onChange={setFireRate} display={fireRate + "%"} />
             </Card>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: "8px" }}>
-              <Metric label="Time to reach" value={reachable ? (months >= 12 ? `${Math.floor(months/12)}y ${months%12}m` : `${months} mo`) : "—"} desc={reachable ? `at ${fmt(investable)}/mo` : "Invest more to reach it"} positive={reachable} />
-              <Metric label="Blended return" value={blendedRet.toFixed(1) + "%"} desc="From your split" positive={true} />
-            </div>
-            <div style={{ fontSize: "10px", color: C.hint, textAlign: "center", padding: "6px 0" }}>Estimate from zero invested. A guide, not a guarantee.</div>
+            <Card>
+              <Label text="When you'd get there" hint={`Investing ${fmt(investable)}/mo from your plan.`} />
+              <div style={{ fontSize: "28px", fontWeight: 800, color: reachable ? C.up : C.text, letterSpacing: "-0.02em" }}>
+                {reachable ? (months >= 12 ? `${Math.floor(months / 12)} yr ${months % 12} mo` : `${months} months`) : "Not yet on track"}
+              </div>
+              <div style={{ fontSize: "12px", color: C.sub, marginTop: "4px" }}>
+                {reachable ? `Starting from zero, growing ${blendedRet.toFixed(1)}%/yr (your investment mix).` : "Invest more each month in your plan to reach FIRE."}
+              </div>
+            </Card>
+            <div style={{ fontSize: "10px", color: C.hint, textAlign: "center", padding: "6px 0" }}>A guide, not a guarantee. Assumes steady returns from zero invested.</div>
           </>;
         })()}
 
