@@ -137,8 +137,7 @@ function PostCard({ post, onOpenProfile, onSaveOpen, onView, saved }) {
 }
 
 // Render one of the user's own posts (caption + optional image) as a feed card.
-function MyPostCard({ post, author, initial, onSaveOpen, onView, saved }) {
-  const [liked, setLiked] = useState(false);
+function MyPostCard({ post, author, initial, onSaveOpen, onView, saved, liked, onToggleLike }) {
   const when = (() => { try { return new Date(post.createdAt).toLocaleDateString(); } catch { return ""; } })();
   const snap = { id: post.id, author, handle: "@" + author, initial, time: when, tag: "You", kind: post.image ? "photo" : "text", caption: post.caption, image: post.image || null, media: null };
   return (
@@ -153,9 +152,9 @@ function MyPostCard({ post, author, initial, onSaveOpen, onView, saved }) {
       {post.image && <img src={post.image} alt="" onClick={() => onView?.(snap)} style={{ width: "100%", maxHeight: 420, objectFit: "cover", borderTop: "0.5px solid " + C.border, borderBottom: "0.5px solid " + C.border, display: "block", cursor: "pointer" }} />}
       <div style={{ padding: "10px 14px 14px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: "18px", marginBottom: post.caption ? "8px" : 0 }}>
-          <button onClick={() => setLiked(v => !v)} aria-label="Like" style={{ background: "none", border: "none", cursor: "pointer", padding: 0, color: liked ? C.down : C.text, display: "flex", alignItems: "center", gap: "6px", fontSize: "13px", fontWeight: 600 }}>
+          <button onClick={() => onToggleLike?.(post.id)} aria-label="Like" style={{ background: "none", border: "none", cursor: "pointer", padding: 0, color: liked ? C.down : C.text, display: "flex", alignItems: "center", gap: "6px", fontSize: "13px", fontWeight: 600 }}>
             <svg width="22" height="22" viewBox="0 0 24 24" fill={liked ? C.down : "none"} stroke={liked ? C.down : C.text} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1.1 1L12 21l7.7-7.6 1.1-1a5.5 5.5 0 0 0 0-7.8z" /></svg>
-            {liked ? 1 : 0}
+            {post.like_count || 0}
           </button>
           <button onClick={() => onView?.(snap)} aria-label="Comments" style={{ background: "none", border: "none", cursor: "pointer", padding: 0, color: C.text, display: "flex", alignItems: "center", gap: "6px", fontSize: "13px", fontWeight: 600 }}>
             <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke={C.text} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-12.6 7.3L3 21l2.2-5.4A8.4 8.4 0 1 1 21 11.5z" /></svg>
@@ -171,13 +170,26 @@ function MyPostCard({ post, author, initial, onSaveOpen, onView, saved }) {
   );
 }
 
-export default function Feed({ profile = {}, posts = [], email, playlists = [], onToggleSave, onCreatePlaylist, isSaved, currentUserId, allowReplies = true, onOpenProfile, onCompose }) {
+export default function Feed({ profile = {}, posts = [], email, playlists = [], onToggleSave, onCreatePlaylist, isSaved, currentUserId, allowReplies = true, likedIds, onToggleLike, onDiscover, onNotifs, onOpenProfile, onCompose }) {
   const myInitial = profile.first?.[0] || email?.[0] || "Y";
   const myName = (profile.first || profile.last) ? `${profile.first || ""} ${profile.last || ""}`.trim() : (profile.handle || "You");
   const [saveTarget, setSaveTarget] = useState(null); // snapshot being saved
   const [viewing, setViewing] = useState(null); // snapshot being zoomed
   return (
     <div className="ffade">
+      {/* header: title + discover people */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
+        <span style={{ fontSize: "20px", fontWeight: 800, letterSpacing: "-0.02em", color: C.text }}>Feed</span>
+        <span style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <button onClick={onNotifs} aria-label="Notifications" style={{ width: 36, height: 36, display: "flex", alignItems: "center", justifyContent: "center", background: C.surface, border: "0.5px solid " + C.border, borderRadius: "50%", cursor: "pointer", color: C.text }}>
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.7 21a2 2 0 0 1-3.4 0" /></svg>
+          </button>
+          <button onClick={onDiscover} aria-label="Discover people" style={{ display: "flex", alignItems: "center", gap: "6px", background: C.surface, border: "0.5px solid " + C.border, borderRadius: "999px", padding: "7px 13px", cursor: "pointer", color: C.text, fontSize: "12px", fontWeight: 700 }}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="7" /><path d="m21 21-4.3-4.3" /></svg>
+            Discover
+          </button>
+        </span>
+      </div>
       {/* composer */}
       <button onClick={onCompose} style={{ width: "100%", display: "flex", alignItems: "center", gap: "10px", background: C.card, border: "0.5px solid " + C.border, borderRadius: "14px", padding: "11px 13px", marginBottom: "14px", cursor: "pointer", textAlign: "left" }}>
         <Avatar initial={myInitial} size={32} />
@@ -187,7 +199,7 @@ export default function Feed({ profile = {}, posts = [], email, playlists = [], 
 
       <StoriesRow onOpenProfile={onOpenProfile} />
 
-      {posts.map(p => <MyPostCard key={p.id} post={p} author={myName} initial={myInitial} onSaveOpen={setSaveTarget} onView={setViewing} saved={isSaved?.(p.id)} />)}
+      {posts.map(p => <MyPostCard key={p.id} post={p} author={myName} initial={myInitial} onSaveOpen={setSaveTarget} onView={setViewing} saved={isSaved?.(p.id)} liked={likedIds?.has(p.id)} onToggleLike={onToggleLike} />)}
       {SAMPLE_POSTS.map(p => <PostCard key={p.id} post={p} onOpenProfile={onOpenProfile} onSaveOpen={setSaveTarget} onView={setViewing} saved={isSaved?.(p.id)} />)}
 
       <SaveSheet snap={saveTarget} playlists={playlists} onToggle={onToggleSave} onCreate={onCreatePlaylist} onClose={() => setSaveTarget(null)} />

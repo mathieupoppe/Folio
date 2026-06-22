@@ -60,6 +60,18 @@ export async function searchProfiles(q, limit = 20) {
   return data || [];
 }
 
+// ── Image upload (Phase 2) ────────────────────────────────────────────────────
+// Uploads a File/Blob to the public post-images bucket under <uid>/<ts>.<ext>
+// and returns its public URL. Requires migration 0006_storage.sql.
+export async function uploadPostImage(userId, file) {
+  const ext = (file.name?.split(".").pop() || file.type?.split("/")[1] || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "");
+  const path = `${userId}/${Date.now()}.${ext}`;
+  const { error } = await supabase.storage.from("post-images").upload(path, file, { upsert: true, contentType: file.type || "image/jpeg" });
+  if (error) throw error;
+  const { data } = supabase.storage.from("post-images").getPublicUrl(path);
+  return data.publicUrl;
+}
+
 // ── Posts ─────────────────────────────────────────────────────────────────────
 const POST_COLS =
   "id, caption, image_url, like_count, comment_count, created_at, author:profiles!posts_author_id_fkey(id, handle, display_name, avatar_url, allow_replies)";
@@ -106,6 +118,14 @@ export async function unarchivePost(postId) {
 }
 
 // Active posts only (not archived, not deleted) — the public profile grid.
+// A single post by id (for shared deep-links). Returns null if missing/deleted.
+export async function getPost(postId) {
+  const { data, error } = await supabase
+    .from("posts").select(POST_COLS).eq("id", postId).is("deleted_at", null).maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
 export async function getUserPosts(authorId, limit = 60) {
   const { data, error } = await supabase
     .from("posts").select(POST_COLS).eq("author_id", authorId)

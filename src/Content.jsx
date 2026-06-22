@@ -129,6 +129,25 @@ function ActorRow({ a, meta }) {
   );
 }
 
+// In-app notifications: recent likes + comments on your posts, time-sorted.
+export function NotificationsView({ userId }) {
+  const [data, setData] = useState(null);
+  useEffect(() => { getActivity(userId).then(setData).catch(() => setData({ recentLikes: [], recentComments: [] })); }, [userId]);
+  if (data === null) return <div style={{ color: C.hint, fontSize: "13px", padding: "20px", textAlign: "center" }}>Loading…</div>;
+  const items = [
+    ...data.recentLikes.map(a => ({ ...a, kind: "like" })),
+    ...data.recentComments.map(a => ({ ...a, kind: "comment" })),
+  ].sort((a, b) => (b.created_at || "").localeCompare(a.created_at || ""));
+  if (!items.length) return <div style={{ textAlign: "center", color: C.hint, fontSize: "13px", padding: "40px 16px", lineHeight: 1.6 }}>No activity yet.<br />When people like or comment on your posts, you'll see it here.</div>;
+  return (
+    <div style={card}>
+      {items.map((a, i) => (
+        <ActorRow key={i} a={a} meta={a.kind === "like" ? "liked your post" : `commented: ${a.body}`} />
+      ))}
+    </div>
+  );
+}
+
 export function ActivityView({ userId }) {
   const [data, setData] = useState(null);
   const [tab, setTab] = useState("likes");

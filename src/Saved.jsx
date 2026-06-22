@@ -45,6 +45,13 @@ export function PostView({ snap, onClose, commentsSlot }) {
             <div style={{ fontSize: "14px", fontWeight: 700, color: C.text }}>{snap.author}</div>
             {(snap.time || snap.tag) && <div style={{ fontSize: "11px", color: C.hint }}>{[snap.time, snap.tag].filter(Boolean).join(" · ")}</div>}
           </div>
+          {snap.id && <button onClick={() => {
+            const url = `${location.origin}${location.pathname}?post=${snap.id}`;
+            if (navigator.share) navigator.share({ title: "Folio", text: snap.caption || "Check out this post on Folio", url }).catch(() => {});
+            else { navigator.clipboard?.writeText(url); window.alert("Link copied — share it anywhere."); }
+          }} aria-label="Share" style={{ background: "none", border: "none", color: C.sub, cursor: "pointer", padding: "4px", marginRight: "2px" }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" /><path d="m8.6 13.5 6.8 4M15.4 6.5 8.6 10.5" /></svg>
+          </button>}
           <button onClick={onClose} aria-label="Close" style={{ background: "none", border: "none", color: C.sub, cursor: "pointer", fontSize: "20px", padding: "4px" }}>✕</button>
         </div>
         <Media snap={snap} big />

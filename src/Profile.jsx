@@ -24,15 +24,18 @@ function Stat({ n, label }) {
 // A small inline composer for creating or editing a post (caption + optional image).
 function PostComposer({ initial, onSave, onCancel, busy }) {
   const [caption, setCaption] = useState(initial?.caption || "");
-  const [image, setImage] = useState(initial?.image || null);
+  const [image, setImage] = useState(initial?.image || null); // preview (data URL or existing URL)
+  const [file, setFile] = useState(null); // new File to upload, if any
   const fileRef = useRef(null);
   const pick = e => {
     const f = e.target.files?.[0];
     if (!f) return;
+    setFile(f);
     const r = new FileReader();
     r.onload = () => setImage(r.result);
     r.readAsDataURL(f);
   };
+  const clearImg = () => { setImage(null); setFile(null); };
   const canSave = caption.trim() || image;
   return (
     <div style={{ background: C.card, border: "0.5px solid " + C.border, borderRadius: "16px", padding: "14px", marginBottom: "16px" }}>
@@ -41,7 +44,7 @@ function PostComposer({ initial, onSave, onCancel, busy }) {
       {image && (
         <div style={{ position: "relative", marginTop: "10px" }}>
           <img src={image} alt="" style={{ width: "100%", maxHeight: 240, objectFit: "cover", borderRadius: "12px", border: "0.5px solid " + C.border, display: "block" }} />
-          <button onClick={() => setImage(null)} aria-label="Remove image" style={{ position: "absolute", top: 8, right: 8, width: 26, height: 26, borderRadius: "50%", border: "none", background: "rgba(0,0,0,0.6)", color: "#fff", cursor: "pointer", fontSize: "14px" }}>✕</button>
+          <button onClick={clearImg} aria-label="Remove image" style={{ position: "absolute", top: 8, right: 8, width: 26, height: 26, borderRadius: "50%", border: "none", background: "rgba(0,0,0,0.6)", color: "#fff", cursor: "pointer", fontSize: "14px" }}>✕</button>
         </div>
       )}
       <input ref={fileRef} type="file" accept="image/*" onChange={pick} style={{ display: "none" }} />
@@ -49,7 +52,7 @@ function PostComposer({ initial, onSave, onCancel, busy }) {
         <button onClick={() => fileRef.current?.click()} style={{ padding: "9px 13px", borderRadius: "10px", border: "0.5px solid " + C.border, background: C.surface, color: C.text, fontSize: "13px", fontWeight: 600, cursor: "pointer" }}>📷 {image ? "Change photo" : "Add photo"}</button>
         <div style={{ flex: 1 }} />
         <button onClick={onCancel} style={{ padding: "9px 13px", borderRadius: "10px", border: "none", background: "transparent", color: C.hint, fontSize: "13px", fontWeight: 600, cursor: "pointer" }}>Cancel</button>
-        <button disabled={!canSave || busy} onClick={() => onSave({ caption: caption.trim(), image })} style={{ padding: "9px 15px", borderRadius: "10px", border: "none", background: (canSave && !busy) ? C.accent : C.border, color: (canSave && !busy) ? C.onAccent : C.hint, fontSize: "13px", fontWeight: 700, cursor: (canSave && !busy) ? "pointer" : "default" }}>{busy ? "Saving…" : initial ? "Save" : "Post"}</button>
+        <button disabled={!canSave || busy} onClick={() => onSave({ caption: caption.trim(), image, file, removedImage: !image })} style={{ padding: "9px 15px", borderRadius: "10px", border: "none", background: (canSave && !busy) ? C.accent : C.border, color: (canSave && !busy) ? C.onAccent : C.hint, fontSize: "13px", fontWeight: 700, cursor: (canSave && !busy) ? "pointer" : "default" }}>{busy ? "Saving…" : initial ? "Save" : "Post"}</button>
       </div>
     </div>
   );
@@ -82,11 +85,11 @@ export default function Profile({ profile = {}, setProfile, posts = [], counts =
   const startEdit = () => { setDraft(profile); setEditing(true); };
   const saveEdit = () => { setProfile?.({ ...profile, ...draft }); setEditing(false); };
 
-  const savePost = async ({ caption, image }) => {
+  const savePost = async ({ caption, image, file, removedImage }) => {
     setBusy(true);
     try {
-      if (composer?.id) await onUpdatePost?.(composer.id, { caption, image });
-      else await onCreatePost?.({ caption, image });
+      if (composer?.id) await onUpdatePost?.(composer.id, { caption, file, keepImage: image && !file, removedImage });
+      else await onCreatePost?.({ caption, file });
       setComposer(null);
     } catch (e) { window.alert("Couldn't save your post: " + (e?.message || e)); }
     finally { setBusy(false); }

@@ -16,9 +16,11 @@ import {
 import Advisor from "./Advisor";
 import Feed from "./Feed";
 import Profile from "./Profile";
-import { getProfile, getUserPosts, getFeed, createPost, updatePost, deletePost, updateProfile, migrateLocalToTables, archivePost, purgeExpiredDeleted } from "./social";
-import { SavedView } from "./Saved";
-import { ArchiveView, RemovedView, ActivityView } from "./Content";
+import { getProfile, getUserPosts, getFeed, createPost, updatePost, deletePost, updateProfile, migrateLocalToTables, archivePost, purgeExpiredDeleted, uploadPostImage, like, unlike, likedPostIds, getPost } from "./social";
+import { SavedView, PostView } from "./Saved";
+import Comments from "./Comments";
+import { ArchiveView, RemovedView, ActivityView, NotificationsView } from "./Content";
+import { Discover, PublicProfile } from "./Discover";
 import Watchlist, { WatchlistWidget } from "./Watchlist";
 import HoldingsEditor from "./Holdings";
 import BudgetTool, { budgetPeriod } from "./Budget";
@@ -463,10 +465,11 @@ function Reveal({ cta, children, accent }) {
 // Auto-shows on first run; relaunchable from Settings.
 const TOUR_STEPS = [
   { emoji: "👋", title: "Welcome to Folio", body: "Finance, but social. A feed for money wins, motivation and learning — plus the tools to track your own. Quick tour!", tab: "feed", target: "nav-feed" },
-  { emoji: "📰", title: "Your feed", body: "Posts, videos and stories about investing, saving and money mindset. Tap a profile to explore.", tab: "feed", target: null },
+  { emoji: "📰", title: "Your feed", body: "Posts and stories about investing, saving and money mindset. Like ❤, comment 💬, or save 🔖 anything you love.", tab: "feed", target: null },
+  { emoji: "🔍", title: "Find your people", body: "Tap Discover (top-right of the Feed) to search by name or @handle and follow others — their posts then show in your feed.", tab: "feed", target: null },
+  { emoji: "✍️", title: "Share your own", body: "Post your wins and tips from your Profile → New post. Tap a post to view it big; manage them in Edit posts.", tab: "profile", target: null },
   { emoji: "📊", title: "Portfolio", body: "Your private overview: net worth charted over time, holdings, watchlist and your AI coach.", tab: "invest", target: "networth" },
-  { emoji: "✨", title: "AI money coach", body: "Get an instant read on your finances — plus a deeper AI analysis with one tap.", tab: "invest", target: "coach" },
-  { emoji: "🧰", title: "Tools", body: "A split planner, growth & FIRE simulators, debt payoff and more — each explains itself as you go.", tab: "tools", target: "toolgrid" },
+  { emoji: "🧰", title: "Tools", body: "Budget, growth simulator, debt payoff and more — pin your favourites and they show live stats.", tab: "tools", target: "toolgrid" },
   { emoji: "👤", title: "Your profile", body: "Your finance identity — avatar, bio, followers and posts. Settings live behind the gear, top-right. You're all set!", tab: "profile", target: "nav-profile" },
 ];
 function Tutorial({ onClose, onNavigate }) {
@@ -651,6 +654,9 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
   const [tab, setTab] = useState("feed");
   const [moreView, setMoreView] = useState("menu"); // sub-page within the More tab
   const [toolView, setToolView] = useState("menu"); // sub-page within the Tools tab
+  const [feedView, setFeedView] = useState("home"); // home | discover | user
+  const [viewUser, setViewUser] = useState(null);   // userId being viewed publicly
+  const [deepView, setDeepView] = useState(null);   // post opened via a shared ?post= link
   const [toolEdit, setToolEdit] = useState(false);  // Tools hub customize mode
   const [homeView, setHomeView] = useState("dash"); // sub-page within the Home tab
   const [nwPeriod, setNwPeriod] = useState("MAX");    // net-worth graph period
@@ -724,6 +730,7 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
   const [socialProfile, setSocialProfile] = useState(null); // { handle, display_name, bio, avatar_url, *_count }
   const [myPosts, setMyPosts]   = useState([]); // this user's posts, table-backed
   const [feedPosts, setFeedPosts] = useState([]); // home feed (own + followed)
+  const [likedIds, setLikedIds] = useState(() => new Set()); // post ids the user liked
 
   // dashboard layout: widget order + hidden set (persisted), plus transient edit mode
   const [dashOrder,  setDashOrder]  = useState(s0.dashOrder  ?? DEFAULT_DASH);
@@ -832,7 +839,29 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
     if (!userId) return;
     const [sp, mp] = await Promise.all([getProfile(userId), getUserPosts(userId)]);
     setSocialProfile(sp); setMyPosts(mp);
-    setFeedPosts(await getFeed(userId));
+    const fp = await getFeed(userId);
+    setFeedPosts(fp);
+    try { setLikedIds(await likedPostIds(userId, fp.map(p => p.id))); } catch { /* ignore */ }
+  };
+
+  // Open a post shared via ?post=<id> deep link.
+  useEffect(() => {
+    if (!userId) return;
+    const id = new URLSearchParams(window.location.search).get("post");
+    if (!id) return;
+    getPost(id).then(p => {
+      if (!p) return;
+      setDeepView({ id: p.id, author: p.author?.display_name?.trim() || ("@" + p.author?.handle), handle: "@" + p.author?.handle, initial: (p.author?.display_name?.[0] || p.author?.handle?.[0] || "?").toUpperCase(), kind: p.image_url ? "photo" : "text", caption: p.caption, image: p.image_url, media: null });
+    }).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId]);
+
+  // Like / unlike a real post — optimistic, then reconcile counts from the feed.
+  const onToggleLike = async (postId) => {
+    const liked = likedIds.has(postId);
+    setLikedIds(prev => { const n = new Set(prev); liked ? n.delete(postId) : n.add(postId); return n; });
+    setFeedPosts(prev => prev.map(p => p.id === postId ? { ...p, like_count: Math.max(0, (p.like_count || 0) + (liked ? -1 : 1)) } : p));
+    try { liked ? await unlike(userId, postId) : await like(userId, postId); } catch (e) { console.warn("like failed:", e?.message || e); }
   };
   useEffect(() => {
     if (!userId) return;
@@ -876,8 +905,19 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
   }, [profile.first, profile.last, profile.bio, profile.avatar, profile.handle, userId]);
 
   // Table-backed post handlers (passed to Profile + Feed).
-  const onCreatePost = async ({ caption, image }) => { await createPost(userId, { caption, image_url: image || null }); await refreshSocial(); };
-  const onUpdatePost = async (id, { caption, image }) => { await updatePost(id, { caption, image_url: image || null }); await refreshSocial(); };
+  const onCreatePost = async ({ caption, file }) => {
+    const image_url = file ? await uploadPostImage(userId, file) : null;
+    await createPost(userId, { caption, image_url });
+    await refreshSocial();
+  };
+  const onUpdatePost = async (id, { caption, file, keepImage, removedImage }) => {
+    const patch = { caption };
+    if (file) patch.image_url = await uploadPostImage(userId, file);
+    else if (removedImage && !keepImage) patch.image_url = null;
+    // keepImage = leave the existing image_url untouched (don't send the field)
+    await updatePost(id, patch);
+    await refreshSocial();
+  };
   const onDeletePost = async (id) => { await deletePost(id); await refreshSocial(); };
   const onArchivePost = async (id) => { await archivePost(id); await refreshSocial(); };
   const setAllowReplies = async (v) => { try { const p = await updateProfile(userId, { allow_replies: v }); if (p) setSocialProfile(p); } catch (e) { window.alert("Couldn't update: " + (e?.message || e)); } };
@@ -1184,11 +1224,26 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
       <div className="shell" style={{ padding: "0.8rem 1rem 5rem" }}>
 
         {/* ── FEED (social) ── */}
-        {tab === "feed" && (
+        {tab === "feed" && feedView === "home" && (
           <Feed profile={profile} posts={feedPosts.map(toCard)} email={session?.user?.email}
             playlists={playlists} onToggleSave={togglePlaylistPost} onCreatePlaylist={createPlaylist} isSaved={isPostSaved}
             currentUserId={userId} allowReplies={socialProfile?.allow_replies ?? true}
+            likedIds={likedIds} onToggleLike={onToggleLike}
+            onDiscover={() => setFeedView("discover")}
+            onNotifs={() => setFeedView("notifs")}
             onCompose={() => setTab("profile")} onOpenProfile={() => setTab("profile")} />
+        )}
+        {tab === "feed" && feedView === "notifs" && (
+          <><div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "14px" }}>
+            <button onClick={() => setFeedView("home")} style={{ background: "none", border: "none", color: C.accent, fontSize: "14px", fontWeight: 600, cursor: "pointer", padding: 0 }}>← Feed</button>
+            <span style={{ fontSize: "17px", fontWeight: 800, color: C.text }}>Notifications</span>
+          </div><NotificationsView userId={userId} /></>
+        )}
+        {tab === "feed" && feedView === "discover" && (
+          <Discover currentUserId={userId} onBack={() => setFeedView("home")} onOpenUser={(id) => { setViewUser(id); setFeedView("user"); }} />
+        )}
+        {tab === "feed" && feedView === "user" && (
+          <PublicProfile userId={viewUser} currentUserId={userId} onBack={() => setFeedView("discover")} onFollowChanged={refreshSocial} />
         )}
 
         {/* ── PROFILE ── */}
@@ -2363,7 +2418,7 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
           {[["feed","Feed"],["tools","Tools"],["invest","Portfolio"],["profile","Profile"]].map(([id, lbl]) => {
             const active = tab === id;
             return (
-              <button key={id} data-tour={"nav-" + id} onClick={() => { setTab(id); if (id === "tools") { setToolView("menu"); setToolEdit(false); } if (id === "invest") setHomeView("dash"); }} style={{
+              <button key={id} data-tour={"nav-" + id} onClick={() => { setTab(id); if (id === "feed") setFeedView("home"); if (id === "tools") { setToolView("menu"); setToolEdit(false); } if (id === "invest") setHomeView("dash"); }} style={{
                 flex: 1, padding: "8px 2px", borderRadius: "13px", border: "none", cursor: "pointer",
                 background: active ? C.accent + "1f" : "transparent", color: active ? C.accent : C.sub,
                 fontWeight: active ? 700 : 500, fontSize: "10px",
@@ -2379,6 +2434,7 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
 
       {showTour && <Tutorial onClose={closeTour} onNavigate={(t) => { setTab(t); if (t === "more") setMoreView("menu"); if (t === "tools") setToolView("menu"); if (t === "invest") setHomeView("dash"); }} />}
       {pinModal && <PinModal key={pinModal.mode + "|" + pinModal.title} mode={pinModal.mode} title={pinModal.title} onDone={pinModal.onDone} onClose={() => setPinModal(null)} />}
+      {deepView && <PostView snap={deepView} onClose={() => { setDeepView(null); try { window.history.replaceState(null, "", window.location.pathname); } catch {} }} commentsSlot={<Comments postId={deepView.id} currentUserId={userId} allowReplies />} />}
     </div>
     </HintCtx.Provider>
   );
