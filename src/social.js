@@ -273,6 +273,71 @@ export async function getActivity(userId) {
   };
 }
 
+// ── Direct messages / chat ────────────────────────────────────────────────────
+const MSG_COLS =
+  "id, sender_id, recipient_id, body, post_id, created_at, read_at, post:posts(id, caption, image_url, author:profiles!posts_author_id_fkey(handle, display_name))";
+const PEOPLE = "id, handle, display_name, avatar_url";
+
+export async function sendMessage(senderId, recipientId, { body = null, postId = null } = {}) {
+  const { data, error } = await supabase
+    .from("messages").insert({ sender_id: senderId, recipient_id: recipientId, body, post_id: postId }).select(MSG_COLS).single();
+  if (error) throw error;
+  return data;
+}
+
+// All messages between two users, oldest first.
+export async function getThread(userId, otherId, limit = 200) {
+  const { data, error } = await supabase
+    .from("messages").select(MSG_COLS)
+    .or(`and(sender_id.eq.${userId},recipient_id.eq.${otherId}),and(sender_id.eq.${otherId},recipient_id.eq.${userId})`)
+    .order("created_at", { ascending: true }).limit(limit);
+  if (error) throw error;
+  return data || [];
+}
+
+// Conversation list: latest message per other-person + unread count. Derived
+// client-side from the user's messages (fine at small scale).
+export async function getConversations(userId) {
+  const { data, error } = await supabase
+    .from("messages").select(MSG_COLS)
+    .or(`sender_id.eq.${userId},recipient_id.eq.${userId}`)
+    .order("created_at", { ascending: false }).limit(500);
+  if (error) throw error;
+  const rows = data || [];
+  const otherIds = [...new Set(rows.map(m => m.sender_id === userId ? m.recipient_id : m.sender_id))];
+  let people = {};
+  if (otherIds.length) {
+    const { data: ps } = await supabase.from("profiles").select(PEOPLE).in("id", otherIds);
+    people = Object.fromEntries((ps || []).map(p => [p.id, p]));
+  }
+  const seen = new Set();
+  const convos = [];
+  for (const m of rows) {
+    const other = m.sender_id === userId ? m.recipient_id : m.sender_id;
+    if (seen.has(other)) continue;
+    seen.add(other);
+    const unread = rows.filter(x => x.sender_id === other && x.recipient_id === userId && !x.read_at).length;
+    convos.push({ otherId: other, other: people[other] || { id: other, handle: "user" }, last: m, unread });
+  }
+  return convos;
+}
+
+// Total unread across all conversations (for the nav badge).
+export async function unreadTotal(userId) {
+  const { count, error } = await supabase
+    .from("messages").select("*", { count: "exact", head: true })
+    .eq("recipient_id", userId).is("read_at", null);
+  if (error) throw error;
+  return count || 0;
+}
+
+// Mark every message from `otherId` to me as read.
+export async function markThreadRead(userId, otherId) {
+  const { error } = await supabase.from("messages").update({ read_at: new Date().toISOString() })
+    .eq("recipient_id", userId).eq("sender_id", otherId).is("read_at", null);
+  if (error) throw error;
+}
+
 // ── One-time migration: push locally-stored profile + posts into the tables ─────
 // Local posts were { id, caption, image (data URL), createdAt }. We can carry the
 // caption over; local data-URL images are dropped (real images upload in Phase 2).

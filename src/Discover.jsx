@@ -16,7 +16,7 @@ function Avatar({ p, size = 44 }) {
 const nameOf = p => p?.display_name?.trim() || (p?.handle ? "@" + p.handle : "Someone");
 
 // ── Public profile (read-only, with Follow) ──────────────────────────────────
-export function PublicProfile({ userId, currentUserId, onBack, onFollowChanged }) {
+export function PublicProfile({ userId, currentUserId, onBack, onFollowChanged, onMessage }) {
   const [prof, setProf] = useState(null);
   const [posts, setPosts] = useState([]);
   const [following, setFollowing] = useState(false);
@@ -60,7 +60,10 @@ export function PublicProfile({ userId, currentUserId, onBack, onFollowChanged }
       <div style={{ fontSize: "14px", fontWeight: 800, color: C.text }}>{nameOf(prof)}</div>
       {prof.bio && <div style={{ fontSize: "13px", color: C.sub, lineHeight: 1.5, marginTop: "3px", whiteSpace: "pre-line" }}>{prof.bio}</div>}
       {!isSelf && (
-        <button onClick={toggle} disabled={busy} style={{ width: "100%", marginTop: "14px", marginBottom: "18px", padding: "10px", borderRadius: "10px", border: following ? "0.5px solid " + C.border : "none", background: following ? C.surface : C.accent, color: following ? C.text : C.onAccent, fontSize: "13px", fontWeight: 700, cursor: "pointer" }}>{following ? "Following ✓" : "Follow"}</button>
+        <div style={{ display: "flex", gap: "8px", marginTop: "14px", marginBottom: "18px" }}>
+          <button onClick={toggle} disabled={busy} style={{ flex: 1, padding: "10px", borderRadius: "10px", border: following ? "0.5px solid " + C.border : "none", background: following ? C.surface : C.accent, color: following ? C.text : C.onAccent, fontSize: "13px", fontWeight: 700, cursor: "pointer" }}>{following ? "Following ✓" : "Follow"}</button>
+          <button onClick={() => onMessage?.(prof)} style={{ flex: 1, padding: "10px", borderRadius: "10px", border: "0.5px solid " + C.border, background: C.surface, color: C.text, fontSize: "13px", fontWeight: 700, cursor: "pointer" }}>Message</button>
+        </div>
       )}
       {posts.length ? (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "3px", marginTop: isSelf ? "16px" : 0 }}>

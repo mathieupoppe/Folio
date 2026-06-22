@@ -21,6 +21,7 @@ import { SavedView, PostView } from "./Saved";
 import Comments from "./Comments";
 import { ArchiveView, RemovedView, ActivityView, NotificationsView } from "./Content";
 import { Discover, PublicProfile } from "./Discover";
+import Messages, { ShareSheet } from "./Messages";
 import Watchlist, { WatchlistWidget } from "./Watchlist";
 import HoldingsEditor from "./Holdings";
 import BudgetTool, { budgetPeriod } from "./Budget";
@@ -587,6 +588,7 @@ const ICONS = {
   feed:    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1"/></svg>,
   invest:  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>,
   profile: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1"/></svg>,
+  messages: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-12.6 7.3L3 21l2.2-5.4A8.4 8.4 0 1 1 21 11.5z"/></svg>,
 };
 
 // Small cloud-sync status pill shown in the header.
@@ -657,6 +659,8 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
   const [feedView, setFeedView] = useState("home"); // home | discover | user
   const [viewUser, setViewUser] = useState(null);   // userId being viewed publicly
   const [deepView, setDeepView] = useState(null);   // post opened via a shared ?post= link
+  const [msgStartUser, setMsgStartUser] = useState(null); // open a DM thread with this profile
+  const [shareTarget, setShareTarget] = useState(null);   // post snapshot being shared
   const [toolEdit, setToolEdit] = useState(false);  // Tools hub customize mode
   const [homeView, setHomeView] = useState("dash"); // sub-page within the Home tab
   const [nwPeriod, setNwPeriod] = useState("MAX");    // net-worth graph period
@@ -1229,6 +1233,7 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
             playlists={playlists} onToggleSave={togglePlaylistPost} onCreatePlaylist={createPlaylist} isSaved={isPostSaved}
             currentUserId={userId} allowReplies={socialProfile?.allow_replies ?? true}
             likedIds={likedIds} onToggleLike={onToggleLike}
+            onShare={setShareTarget}
             onDiscover={() => setFeedView("discover")}
             onNotifs={() => setFeedView("notifs")}
             onCompose={() => setTab("profile")} onOpenProfile={() => setTab("profile")} />
@@ -1243,7 +1248,7 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
           <Discover currentUserId={userId} onBack={() => setFeedView("home")} onOpenUser={(id) => { setViewUser(id); setFeedView("user"); }} />
         )}
         {tab === "feed" && feedView === "user" && (
-          <PublicProfile userId={viewUser} currentUserId={userId} onBack={() => setFeedView("discover")} onFollowChanged={refreshSocial} />
+          <PublicProfile userId={viewUser} currentUserId={userId} onBack={() => setFeedView("discover")} onFollowChanged={refreshSocial} onMessage={(p) => { setMsgStartUser(p); setTab("messages"); }} />
         )}
 
         {/* ── PROFILE ── */}
@@ -1256,6 +1261,11 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
             currentUserId={userId} allowReplies={socialProfile?.allow_replies ?? true}
             email={session?.user?.email}
             onSettings={() => { setTab("more"); setMoreView("menu"); }} />
+        )}
+
+        {/* ── MESSAGES (DMs) ── */}
+        {tab === "messages" && (
+          <Messages currentUserId={userId} startUser={msgStartUser} onConsumeStart={() => setMsgStartUser(null)} onOpenPost={(snap) => setDeepView(snap)} />
         )}
 
         {/* ── INVEST (overview) ── */}
@@ -2415,7 +2425,7 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
       {/* Bottom tab bar */}
       <div style={{ position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 40, background: C.glass, backdropFilter: "blur(20px) saturate(160%)", WebkitBackdropFilter: "blur(20px) saturate(160%)", borderTop: "0.5px solid " + C.border, boxShadow: "0 -12px 30px -18px rgba(0,0,0,0.6)", paddingBottom: "env(safe-area-inset-bottom)" }}>
         <div style={{ maxWidth: 440, margin: "0 auto", display: "flex", gap: "4px", padding: "8px 10px" }}>
-          {[["feed","Feed"],["tools","Tools"],["invest","Portfolio"],["profile","Profile"]].map(([id, lbl]) => {
+          {[["feed","Feed"],["tools","Tools"],["messages","Messages"],["invest","Portfolio"],["profile","Profile"]].map(([id, lbl]) => {
             const active = tab === id;
             return (
               <button key={id} data-tour={"nav-" + id} onClick={() => { setTab(id); if (id === "feed") setFeedView("home"); if (id === "tools") { setToolView("menu"); setToolEdit(false); } if (id === "invest") setHomeView("dash"); }} style={{
@@ -2435,6 +2445,7 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
       {showTour && <Tutorial onClose={closeTour} onNavigate={(t) => { setTab(t); if (t === "more") setMoreView("menu"); if (t === "tools") setToolView("menu"); if (t === "invest") setHomeView("dash"); }} />}
       {pinModal && <PinModal key={pinModal.mode + "|" + pinModal.title} mode={pinModal.mode} title={pinModal.title} onDone={pinModal.onDone} onClose={() => setPinModal(null)} />}
       {deepView && <PostView snap={deepView} onClose={() => { setDeepView(null); try { window.history.replaceState(null, "", window.location.pathname); } catch {} }} commentsSlot={<Comments postId={deepView.id} currentUserId={userId} allowReplies />} />}
+      {shareTarget && <ShareSheet post={shareTarget} currentUserId={userId} onClose={() => setShareTarget(null)} />}
     </div>
     </HintCtx.Provider>
   );

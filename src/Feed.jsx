@@ -97,7 +97,7 @@ function PostMedia({ media, kind }) {
   );
 }
 
-function PostCard({ post, onOpenProfile, onSaveOpen, onView, saved }) {
+function PostCard({ post, onOpenProfile, onSaveOpen, onView, saved, onShare }) {
   const [liked, setLiked] = useState(false);
   const likeCount = post.likes + (liked ? 1 : 0);
   const snap = { id: post.id, author: post.author, handle: post.handle, initial: post.initial, time: post.time, tag: post.tag, kind: post.kind, caption: post.caption, image: null, media: post.media };
@@ -123,7 +123,10 @@ function PostCard({ post, onOpenProfile, onSaveOpen, onView, saved }) {
             <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke={C.text} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-12.6 7.3L3 21l2.2-5.4A8.4 8.4 0 1 1 21 11.5z" /></svg>
             {post.comments}
           </button>
-          <button onClick={() => onSaveOpen?.(snap)} aria-label="Save" style={{ background: "none", border: "none", cursor: "pointer", padding: 0, marginLeft: "auto", color: saved ? C.accent : C.text }}>
+          <button onClick={() => onShare?.(snap)} aria-label="Share" style={{ background: "none", border: "none", cursor: "pointer", padding: 0, marginLeft: "auto", color: C.text }}>
+            <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke={C.text} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" /><path d="m8.6 13.5 6.8 4M15.4 6.5 8.6 10.5" /></svg>
+          </button>
+          <button onClick={() => onSaveOpen?.(snap)} aria-label="Save" style={{ background: "none", border: "none", cursor: "pointer", padding: 0, color: saved ? C.accent : C.text }}>
             <svg width="21" height="21" viewBox="0 0 24 24" fill={saved ? C.accent : "none"} stroke={saved ? C.accent : C.text} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" /></svg>
           </button>
         </div>
@@ -137,7 +140,7 @@ function PostCard({ post, onOpenProfile, onSaveOpen, onView, saved }) {
 }
 
 // Render one of the user's own posts (caption + optional image) as a feed card.
-function MyPostCard({ post, author, initial, onSaveOpen, onView, saved, liked, onToggleLike }) {
+function MyPostCard({ post, author, initial, onSaveOpen, onView, saved, liked, onToggleLike, onShare }) {
   const when = (() => { try { return new Date(post.createdAt).toLocaleDateString(); } catch { return ""; } })();
   const snap = { id: post.id, author, handle: "@" + author, initial, time: when, tag: "You", kind: post.image ? "photo" : "text", caption: post.caption, image: post.image || null, media: null };
   return (
@@ -160,7 +163,10 @@ function MyPostCard({ post, author, initial, onSaveOpen, onView, saved, liked, o
             <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke={C.text} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-12.6 7.3L3 21l2.2-5.4A8.4 8.4 0 1 1 21 11.5z" /></svg>
             {post.comment_count || 0}
           </button>
-          <button onClick={() => onSaveOpen?.(snap)} aria-label="Save" style={{ background: "none", border: "none", cursor: "pointer", padding: 0, marginLeft: "auto", color: saved ? C.accent : C.text }}>
+          <button onClick={() => onShare?.(snap)} aria-label="Share" style={{ background: "none", border: "none", cursor: "pointer", padding: 0, marginLeft: "auto", color: C.text }}>
+            <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke={C.text} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" /><path d="m8.6 13.5 6.8 4M15.4 6.5 8.6 10.5" /></svg>
+          </button>
+          <button onClick={() => onSaveOpen?.(snap)} aria-label="Save" style={{ background: "none", border: "none", cursor: "pointer", padding: 0, color: saved ? C.accent : C.text }}>
             <svg width="21" height="21" viewBox="0 0 24 24" fill={saved ? C.accent : "none"} stroke={saved ? C.accent : C.text} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" /></svg>
           </button>
         </div>
@@ -170,7 +176,7 @@ function MyPostCard({ post, author, initial, onSaveOpen, onView, saved, liked, o
   );
 }
 
-export default function Feed({ profile = {}, posts = [], email, playlists = [], onToggleSave, onCreatePlaylist, isSaved, currentUserId, allowReplies = true, likedIds, onToggleLike, onDiscover, onNotifs, onOpenProfile, onCompose }) {
+export default function Feed({ profile = {}, posts = [], email, playlists = [], onToggleSave, onCreatePlaylist, isSaved, currentUserId, allowReplies = true, likedIds, onToggleLike, onShare, onDiscover, onNotifs, onOpenProfile, onCompose }) {
   const myInitial = profile.first?.[0] || email?.[0] || "Y";
   const myName = (profile.first || profile.last) ? `${profile.first || ""} ${profile.last || ""}`.trim() : (profile.handle || "You");
   const [saveTarget, setSaveTarget] = useState(null); // snapshot being saved
@@ -199,8 +205,8 @@ export default function Feed({ profile = {}, posts = [], email, playlists = [], 
 
       <StoriesRow onOpenProfile={onOpenProfile} />
 
-      {posts.map(p => <MyPostCard key={p.id} post={p} author={myName} initial={myInitial} onSaveOpen={setSaveTarget} onView={setViewing} saved={isSaved?.(p.id)} liked={likedIds?.has(p.id)} onToggleLike={onToggleLike} />)}
-      {SAMPLE_POSTS.map(p => <PostCard key={p.id} post={p} onOpenProfile={onOpenProfile} onSaveOpen={setSaveTarget} onView={setViewing} saved={isSaved?.(p.id)} />)}
+      {posts.map(p => <MyPostCard key={p.id} post={p} author={myName} initial={myInitial} onSaveOpen={setSaveTarget} onView={setViewing} saved={isSaved?.(p.id)} liked={likedIds?.has(p.id)} onToggleLike={onToggleLike} onShare={onShare} />)}
+      {SAMPLE_POSTS.map(p => <PostCard key={p.id} post={p} onOpenProfile={onOpenProfile} onSaveOpen={setSaveTarget} onView={setViewing} saved={isSaved?.(p.id)} onShare={onShare} />)}
 
       <SaveSheet snap={saveTarget} playlists={playlists} onToggle={onToggleSave} onCreate={onCreatePlaylist} onClose={() => setSaveTarget(null)} />
       <PostView snap={viewing} onClose={() => setViewing(null)} commentsSlot={viewing && <Comments postId={viewing.id} currentUserId={currentUserId} allowReplies={allowReplies} />} />
