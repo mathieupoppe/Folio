@@ -106,7 +106,7 @@ export default function Advisor({ data }) {
     }
   };
 
-  const STARTERS = ["Why is my health score what it is?", "How can I improve fastest?", "Am I saving enough?"];
+  const STARTERS = ["When can I retire?", "Am I saving enough?", "How can I improve fastest?"];
 
   const accentGrad = `linear-gradient(135deg, ${C.accent}, ${C.accentD})`;
 
