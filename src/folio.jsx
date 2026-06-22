@@ -2360,7 +2360,7 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
       {/* Bottom tab bar */}
       <div style={{ position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 40, background: C.glass, backdropFilter: "blur(20px) saturate(160%)", WebkitBackdropFilter: "blur(20px) saturate(160%)", borderTop: "0.5px solid " + C.border, boxShadow: "0 -12px 30px -18px rgba(0,0,0,0.6)", paddingBottom: "env(safe-area-inset-bottom)" }}>
         <div style={{ maxWidth: 440, margin: "0 auto", display: "flex", gap: "4px", padding: "8px 10px" }}>
-          {[["feed","Feed"],["invest","Portfolio"],["tools","Tools"],["profile","Profile"]].map(([id, lbl]) => {
+          {[["feed","Feed"],["tools","Tools"],["invest","Portfolio"],["profile","Profile"]].map(([id, lbl]) => {
             const active = tab === id;
             return (
               <button key={id} data-tour={"nav-" + id} onClick={() => { setTab(id); if (id === "tools") { setToolView("menu"); setToolEdit(false); } if (id === "invest") setHomeView("dash"); }} style={{
