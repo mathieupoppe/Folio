@@ -34,7 +34,7 @@ function Media({ snap, big }) {
 
 // Full-screen zoomed-in view of a single post (read-only). Pass `commentsSlot`
 // (a rendered <Comments/>) to show the comment thread beneath the post.
-export function PostView({ snap, onClose, commentsSlot }) {
+export function PostView({ snap, onClose, commentsSlot, onReport }) {
   if (!snap) return null;
   return (
     <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 95, background: "rgba(0,0,0,0.9)", backdropFilter: "blur(6px)", WebkitBackdropFilter: "blur(6px)", display: "flex", alignItems: "center", justifyContent: "center", padding: "max(12px, env(safe-area-inset-top)) 12px" }}>
@@ -51,6 +51,9 @@ export function PostView({ snap, onClose, commentsSlot }) {
             else { navigator.clipboard?.writeText(url); window.alert("Link copied — share it anywhere."); }
           }} aria-label="Share" style={{ background: "none", border: "none", color: C.sub, cursor: "pointer", padding: "4px", marginRight: "2px" }}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" /><path d="m8.6 13.5 6.8 4M15.4 6.5 8.6 10.5" /></svg>
+          </button>}
+          {onReport && snap.id && !snap.mine && <button onClick={() => onReport(snap)} aria-label="Report post" title="Report" style={{ background: "none", border: "none", color: C.sub, cursor: "pointer", padding: "4px", marginRight: "2px" }}>
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 21V4h13l-2 4 2 4H4" /></svg>
           </button>}
           <button onClick={onClose} aria-label="Close" style={{ background: "none", border: "none", color: C.sub, cursor: "pointer", fontSize: "20px", padding: "4px" }}>✕</button>
         </div>

@@ -16,11 +16,13 @@ import {
 import Advisor from "./Advisor";
 import Feed from "./Feed";
 import Profile from "./Profile";
-import { getProfile, getUserPosts, getFeed, createPost, updatePost, deletePost, updateProfile, migrateLocalToTables, archivePost, purgeExpiredDeleted, uploadPostImage, like, unlike, likedPostIds, getPost } from "./social";
+import { getProfile, getUserPosts, getFeed, createPost, updatePost, deletePost, updateProfile, migrateLocalToTables, archivePost, purgeExpiredDeleted, uploadPostImage, like, unlike, likedPostIds, getPost, blockedIds } from "./social";
 import { SavedView, PostView } from "./Saved";
 import Comments from "./Comments";
 import { ArchiveView, RemovedView, ActivityView, NotificationsView } from "./Content";
 import { Discover, PublicProfile } from "./Discover";
+import { ReportSheet, AdminQueue, BlockedAccounts, TermsOfService, useOpenReportCount } from "./Moderation";
+import { acceptTos } from "./social";
 import Messages, { ShareSheet } from "./Messages";
 import Watchlist, { WatchlistWidget } from "./Watchlist";
 import HoldingsEditor from "./Holdings";
@@ -661,6 +663,8 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
   const [deepView, setDeepView] = useState(null);   // post opened via a shared ?post= link
   const [msgStartUser, setMsgStartUser] = useState(null); // open a DM thread with this profile
   const [shareTarget, setShareTarget] = useState(null);   // post snapshot being shared
+  const [reportTarget, setReportTarget] = useState(null); // { postId } or { userId, handle } being reported
+  const [blocked, setBlocked] = useState(() => new Set()); // user ids the current user blocked
   const [toolEdit, setToolEdit] = useState(false);  // Tools hub customize mode
   const [homeView, setHomeView] = useState("dash"); // sub-page within the Home tab
   const [nwPeriod, setNwPeriod] = useState("MAX");    // net-worth graph period
@@ -735,6 +739,7 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
   const [myPosts, setMyPosts]   = useState([]); // this user's posts, table-backed
   const [feedPosts, setFeedPosts] = useState([]); // home feed (own + followed)
   const [likedIds, setLikedIds] = useState(() => new Set()); // post ids the user liked
+  const openReports = useOpenReportCount(!!socialProfile?.is_admin); // admin: # of open reports
 
   // dashboard layout: widget order + hidden set (persisted), plus transient edit mode
   const [dashOrder,  setDashOrder]  = useState(s0.dashOrder  ?? DEFAULT_DASH);
@@ -841,9 +846,10 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
   // ── Social (Phase 1): load table-backed profile + posts + feed; migrate once ──
   const refreshSocial = async () => {
     if (!userId) return;
-    const [sp, mp] = await Promise.all([getProfile(userId), getUserPosts(userId)]);
-    setSocialProfile(sp); setMyPosts(mp);
-    const fp = await getFeed(userId);
+    const [sp, mp, bl] = await Promise.all([getProfile(userId), getUserPosts(userId), blockedIds(userId).catch(() => new Set())]);
+    setSocialProfile(sp); setMyPosts(mp); setBlocked(bl);
+    let fp = await getFeed(userId);
+    if (bl.size) fp = fp.filter(p => !bl.has(p.author?.id) && !bl.has(p.author_id));
     setFeedPosts(fp);
     try { setLikedIds(await likedPostIds(userId, fp.map(p => p.id))); } catch { /* ignore */ }
   };
@@ -1228,6 +1234,14 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
       <div className="shell" style={{ padding: "0.8rem 1rem 5rem" }}>
 
         {/* ── FEED (social) ── */}
+        {tab === "feed" && feedView === "home" && socialProfile && !socialProfile.tos_accepted_at && (
+          <div style={{ background: C.card, border: "0.5px solid " + C.border, borderRadius: "14px", padding: "13px 15px", marginBottom: "14px", display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap" }}>
+            <div style={{ flex: 1, minWidth: 180, fontSize: "12px", color: C.sub, lineHeight: 1.5 }}>
+              By posting and interacting you agree to our <button onClick={() => { setTab("more"); setMoreView("terms"); }} style={{ background: "none", border: "none", padding: 0, color: C.accent, fontWeight: 700, cursor: "pointer", fontSize: "12px" }}>community rules</button>. Folio removes objectionable content and bans abusive users.
+            </div>
+            <button onClick={async () => { try { const p = await acceptTos(userId); if (p) setSocialProfile(p); } catch (e) { window.alert(e?.message || e); } }} style={{ padding: "9px 16px", borderRadius: "999px", border: "none", background: C.accent, color: C.onAccent, fontSize: "12px", fontWeight: 700, cursor: "pointer" }}>I agree</button>
+          </div>
+        )}
         {tab === "feed" && feedView === "home" && (
           <Feed profile={profile} posts={feedPosts.map(toCard)} email={session?.user?.email}
             playlists={playlists} onToggleSave={togglePlaylistPost} onCreatePlaylist={createPlaylist} isSaved={isPostSaved}
@@ -1248,7 +1262,7 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
           <Discover currentUserId={userId} onBack={() => setFeedView("home")} onOpenUser={(id) => { setViewUser(id); setFeedView("user"); }} />
         )}
         {tab === "feed" && feedView === "user" && (
-          <PublicProfile userId={viewUser} currentUserId={userId} onBack={() => setFeedView("discover")} onFollowChanged={refreshSocial} onMessage={(p) => { setMsgStartUser(p); setTab("messages"); }} />
+          <PublicProfile userId={viewUser} currentUserId={userId} onBack={() => setFeedView("discover")} onFollowChanged={refreshSocial} onMessage={(p) => { setMsgStartUser(p); setTab("messages"); }} onReport={(t) => setReportTarget(t.id ? { postId: t.id } : t)} />
         )}
 
         {/* ── PROFILE ── */}
@@ -2107,6 +2121,8 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
             <NavRow label="Report a bug" desc="Something broken? Let us know" onClick={() => setMoreView("bug")} />
             <NavRow label="Suggest a feature" desc="Ideas for new tools & features" onClick={() => setMoreView("idea")} />
             <NavRow label="Privacy policy" desc="What we store & your controls" onClick={() => setMoreView("privacy")} />
+            <NavRow label="Terms of Service" desc="Community rules & acceptable use" onClick={() => setMoreView("terms")} />
+            {socialProfile?.is_admin && <NavRow label="Review queue" desc={openReports > 0 ? `${openReports} report${openReports === 1 ? "" : "s"} to review` : "Reported posts & accounts"} onClick={() => setMoreView("modqueue")} />}
           </Card>
           {session && <button onClick={() => onSignOut && onSignOut()} style={{ width: "100%", padding: "13px", borderRadius: "12px", border: "0.5px solid " + C.down, background: C.down + "18", color: C.down, fontWeight: 700, fontSize: "14px", cursor: "pointer" }}>Sign out</button>}
         </> : <>
@@ -2195,7 +2211,17 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
                 ); })()}
               </div>
             </Card>
+            <Card style={{ paddingTop: "2px", paddingBottom: "2px" }}>
+              <NavRow label="Blocked accounts" desc="People you've blocked from your feed & search" onClick={() => setMoreView("blocked")} />
+            </Card>
             <div style={{ fontSize: "11px", color: C.hint, textAlign: "center", padding: "4px 8px", lineHeight: 1.6 }}>More privacy controls (who can comment, mentions) arrive with the social rollout.</div>
+          </>}
+
+          {moreView === "blocked" && <>
+            <BackBar title="Blocked accounts" onBack={() => setMoreView("privacysettings")} />
+            <Card>
+              <BlockedAccounts currentUserId={userId} />
+            </Card>
           </>}
 
           {moreView === "language" && <>
@@ -2416,6 +2442,19 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
               </div>
             </Card>
           </>}
+
+          {moreView === "terms" && <>
+            <BackBar title="Terms of Service" onBack={() => setMoreView("menu")} />
+            <Card>
+              <Label text="Terms of Service" hint={socialProfile?.tos_accepted_at ? "Accepted " + new Date(socialProfile.tos_accepted_at).toLocaleDateString() : "Please review the rules of the community."} />
+              <TermsOfService />
+            </Card>
+          </>}
+
+          {moreView === "modqueue" && <>
+            <BackBar title="Review queue" onBack={() => setMoreView("menu")} />
+            <AdminQueue currentUserId={userId} />
+          </>}
         </>)}
 
         <input ref={fileRef} type="file" accept="application/json,.json" onChange={importData} style={{ display: "none" }} />
@@ -2444,8 +2483,9 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
 
       {showTour && <Tutorial onClose={closeTour} onNavigate={(t) => { setTab(t); if (t === "more") setMoreView("menu"); if (t === "tools") setToolView("menu"); if (t === "invest") setHomeView("dash"); }} />}
       {pinModal && <PinModal key={pinModal.mode + "|" + pinModal.title} mode={pinModal.mode} title={pinModal.title} onDone={pinModal.onDone} onClose={() => setPinModal(null)} />}
-      {deepView && <PostView snap={deepView} onClose={() => { setDeepView(null); try { window.history.replaceState(null, "", window.location.pathname); } catch {} }} commentsSlot={<Comments postId={deepView.id} currentUserId={userId} allowReplies />} />}
+      {deepView && <PostView snap={deepView} onClose={() => { setDeepView(null); try { window.history.replaceState(null, "", window.location.pathname); } catch {} }} onReport={(s) => setReportTarget({ postId: s.id })} commentsSlot={<Comments postId={deepView.id} currentUserId={userId} allowReplies />} />}
       {shareTarget && <ShareSheet post={shareTarget} currentUserId={userId} onClose={() => setShareTarget(null)} />}
+      {reportTarget && <ReportSheet target={reportTarget} currentUserId={userId} onClose={() => setReportTarget(null)} onDone={refreshSocial} />}
     </div>
     </HintCtx.Provider>
   );

@@ -11,7 +11,7 @@ import { supabase } from "./supabase";
 export async function getProfile(userId) {
   const { data, error } = await supabase
     .from("profiles")
-    .select("id, handle, display_name, bio, avatar_url, followers_count, following_count, posts_count, allow_replies")
+    .select("id, handle, display_name, bio, avatar_url, followers_count, following_count, posts_count, allow_replies, is_admin, tos_accepted_at")
     .eq("id", userId)
     .maybeSingle();
   if (error) throw error;
@@ -336,6 +336,94 @@ export async function markThreadRead(userId, otherId) {
   const { error } = await supabase.from("messages").update({ read_at: new Date().toISOString() })
     .eq("recipient_id", userId).eq("sender_id", otherId).is("read_at", null);
   if (error) throw error;
+}
+
+// ── Moderation (Phase 4): report, block, admin review ─────────────────────────
+// Requires migration 0008_moderation.sql.
+
+// File a report against a post or a user. Pass exactly one of postId / userId.
+export async function fileReport(reporterId, { postId = null, userId = null, reason, details = "" }) {
+  const { error } = await supabase.from("reports").insert({
+    reporter_id: reporterId,
+    target_post_id: postId,
+    target_user_id: userId,
+    reason,
+    details,
+  });
+  if (error) throw error;
+}
+
+export async function blockUser(blockerId, blockedId) {
+  const { error } = await supabase.from("blocks").insert({ blocker_id: blockerId, blocked_id: blockedId });
+  if (error && error.code !== "23505") throw error; // ignore "already blocked"
+}
+export async function unblockUser(blockerId, blockedId) {
+  const { error } = await supabase.from("blocks").delete().eq("blocker_id", blockerId).eq("blocked_id", blockedId);
+  if (error) throw error;
+}
+export async function isBlocked(blockerId, blockedId) {
+  const { data, error } = await supabase.from("blocks")
+    .select("blocked_id").eq("blocker_id", blockerId).eq("blocked_id", blockedId).maybeSingle();
+  if (error) throw error;
+  return !!data;
+}
+// The set of user ids the current user has blocked (used to filter feed/search).
+export async function blockedIds(blockerId) {
+  const { data, error } = await supabase.from("blocks").select("blocked_id").eq("blocker_id", blockerId);
+  if (error) throw error;
+  return new Set((data || []).map(r => r.blocked_id));
+}
+// Block list with profiles, for the "Blocked accounts" settings page.
+export async function getBlocked(blockerId) {
+  const { data, error } = await supabase
+    .from("blocks").select("created_at, blocked:profiles!blocks_blocked_id_fkey(id, handle, display_name, avatar_url)")
+    .eq("blocker_id", blockerId).order("created_at", { ascending: false });
+  if (error) throw error;
+  return (data || []).map(r => ({ ...r.blocked, blocked_at: r.created_at }));
+}
+
+// ── Admin review queue (only returns rows for is_admin users, via RLS) ─────────
+const REPORT_COLS =
+  "id, reason, details, status, action_taken, created_at, resolved_at, " +
+  "reporter:profiles!reports_reporter_id_fkey(handle, display_name), " +
+  "target_user:profiles!reports_target_user_id_fkey(id, handle, display_name), " +
+  "target_post:posts!reports_target_post_id_fkey(id, caption, image_url, deleted_at, author:profiles!posts_author_id_fkey(id, handle))";
+
+export async function getReports({ status } = {}) {
+  let q = supabase.from("reports").select(REPORT_COLS).order("created_at", { ascending: false }).limit(200);
+  if (status) q = q.eq("status", status);
+  const { data, error } = await q;
+  if (error) throw error;
+  return data || [];
+}
+export async function getReportCount(status = "open") {
+  const { count, error } = await supabase.from("reports")
+    .select("*", { count: "exact", head: true }).eq("status", status);
+  if (error) throw error;
+  return count || 0;
+}
+// Admin: move a report through the queue. status: reviewing|resolved|dismissed.
+export async function resolveReport(reportId, adminId, status, action_taken = "") {
+  const done = status === "resolved" || status === "dismissed";
+  const { error } = await supabase.from("reports").update({
+    status, action_taken,
+    resolved_at: done ? new Date().toISOString() : null,
+    resolved_by: done ? adminId : null,
+  }).eq("id", reportId);
+  if (error) throw error;
+}
+// Admin: take down a reported post (soft-delete, same as the author's own delete).
+export async function adminRemovePost(postId) {
+  const { error } = await supabase.from("posts").update({ deleted_at: new Date().toISOString() }).eq("id", postId);
+  if (error) throw error;
+}
+
+// Record that the user accepted the Terms of Service.
+export async function acceptTos(userId) {
+  const { data, error } = await supabase
+    .from("profiles").update({ tos_accepted_at: new Date().toISOString() }).eq("id", userId).select().maybeSingle();
+  if (error) throw error;
+  return data;
 }
 
 // ── One-time migration: push locally-stored profile + posts into the tables ─────

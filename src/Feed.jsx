@@ -2,54 +2,16 @@ import { useState } from "react";
 import { C } from "./theme";
 import { SaveSheet, PostView } from "./Saved";
 import Comments from "./Comments";
+import { SEED_POSTS, SEED_STORIES, creatorById, postsByCreator } from "./seed";
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Social feed — "Instagram for finance". This is the SHELL: real-looking sample
-// content so the experience can be felt before the Supabase backend (profiles,
-// posts, follows, media storage, moderation) is wired up. Swap SAMPLE_* for live
-// data later; the components stay the same.
+// Social feed — "Instagram for finance". A new user with zero follows still
+// lands on a curated starter feed (see seed.js) so it never feels empty. Real
+// posts from people you follow are rendered first, the seed set fills the rest.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const SAMPLE_STORIES = [
-  { id: "you", name: "Your story", initial: "+", you: true },
-  { id: "s1", name: "marketmia", initial: "M" },
-  { id: "s2", name: "fire_finn", initial: "F" },
-  { id: "s3", name: "dividend.dan", initial: "D" },
-  { id: "s4", name: "saver.sara", initial: "S" },
-  { id: "s5", name: "cryptokai", initial: "K" },
-  { id: "s6", name: "indexqueen", initial: "I" },
-];
-
-const SAMPLE_POSTS = [
-  {
-    id: "p1", author: "fire_finn", handle: "@fire_finn", initial: "F", time: "2h",
-    kind: "milestone", tag: "Milestone",
-    media: { big: "€100k", sub: "net worth", trend: "up" },
-    caption: "Hit six figures at 26 🎉 Five years of boring index funds and a 45% savings rate. Slow is smooth.",
-    likes: 1284, comments: 96,
-  },
-  {
-    id: "p2", author: "marketmia", handle: "@marketmia", initial: "M", time: "5h",
-    kind: "video", tag: "Video · 3:12",
-    media: { big: "▶", sub: "How I budget on an irregular income" },
-    caption: "The 3-account system that finally made my freelance money make sense. Full breakdown 👇",
-    likes: 842, comments: 53,
-  },
-  {
-    id: "p3", author: "dividend.dan", handle: "@dividend.dan", initial: "D", time: "1d",
-    kind: "psychology", tag: "Mindset",
-    media: { big: "“", sub: "You don't rise to your goals.\nYou fall to your systems.” " },
-    caption: "Motivation gets you started. Systems keep you rich. Automate the boring stuff.",
-    likes: 2103, comments: 141,
-  },
-  {
-    id: "p4", author: "saver.sara", handle: "@saver.sara", initial: "S", time: "1d",
-    kind: "photo", tag: "Progress",
-    media: { big: "+18%", sub: "savings rate this year", trend: "up" },
-    caption: "Cut three subscriptions I forgot I had and meal-prepped Sundays. Small leaks sink big ships.",
-    likes: 671, comments: 38,
-  },
-];
+const SAMPLE_STORIES = [{ id: "you", name: "Your story", initial: "+", you: true }, ...SEED_STORIES];
+const SAMPLE_POSTS = SEED_POSTS;
 
 function Avatar({ initial, size = 38, ring = false, you = false }) {
   return (
@@ -176,11 +138,51 @@ function MyPostCard({ post, author, initial, onSaveOpen, onView, saved, liked, o
   );
 }
 
+// Read-only profile for a curated seed creator (tapped from a story or a post).
+function SeedProfile({ creatorId, onClose, onView }) {
+  const c = creatorById(creatorId);
+  if (!c) return null;
+  const posts = postsByCreator(creatorId);
+  const Stat = ({ n, l }) => <div style={{ flex: 1, textAlign: "center" }}><div className="tnum" style={{ fontSize: "17px", fontWeight: 800, color: C.text }}>{n}</div><div style={{ fontSize: "11px", color: C.hint }}>{l}</div></div>;
+  const fmt = n => n >= 1000 ? (n / 1000).toFixed(n >= 10000 ? 0 : 1) + "k" : "" + n;
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 94, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
+      <div onClick={e => e.stopPropagation()} className="ffade" style={{ width: "100%", maxWidth: 440, maxHeight: "92vh", overflowY: "auto", background: C.bg, borderRadius: "20px 20px 0 0", borderTop: "0.5px solid " + C.border, padding: "16px 16px calc(20px + env(safe-area-inset-bottom))" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px" }}>
+          <span style={{ fontSize: "15px", fontWeight: 800, color: C.text }}>@{c.handle}</span>
+          <button onClick={onClose} aria-label="Close" style={{ background: "none", border: "none", color: C.sub, cursor: "pointer", fontSize: "20px", padding: "2px 4px" }}>✕</button>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: "16px", marginBottom: "12px" }}>
+          <Avatar initial={c.initial} size={72} />
+          <div style={{ display: "flex", flex: 1 }}><Stat n={posts.length} l="Posts" /><Stat n={fmt(c.followers)} l="Followers" /><Stat n={fmt(Math.round(c.followers / 80))} l="Following" /></div>
+        </div>
+        <div style={{ fontSize: "14px", fontWeight: 800, color: C.text }}>{c.name}</div>
+        <div style={{ fontSize: "13px", color: C.sub, lineHeight: 1.5, marginTop: "3px" }}>{c.bio}</div>
+        <div style={{ display: "flex", gap: "8px", margin: "14px 0 16px" }}>
+          <button disabled style={{ flex: 1, padding: "10px", borderRadius: "10px", border: "none", background: C.surface, color: C.hint, fontSize: "13px", fontWeight: 700, cursor: "default" }}>Following soon</button>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "3px" }}>
+          {posts.map(p => (
+            <button key={p.id} onClick={() => { onView?.({ id: p.id, author: p.author, handle: p.handle, initial: p.initial, time: p.time, tag: p.tag, kind: p.kind, caption: p.caption, image: null, media: p.media }); }} style={{ aspectRatio: "1 / 1", background: `linear-gradient(150deg, ${C.surface}, ${C.card})`, border: "0.5px solid " + C.border, cursor: "pointer", overflow: "hidden", padding: "8px", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "4px", textAlign: "center" }}>
+              <span style={{ fontSize: "18px", fontWeight: 800, color: p.media?.trend === "up" ? C.up : p.media?.trend === "down" ? C.down : C.text, lineHeight: 1 }}>{p.media?.big}</span>
+              {p.media?.sub && <span style={{ fontSize: "9px", color: C.hint, lineHeight: 1.3, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", whiteSpace: "pre-line" }}>{p.media.sub}</span>}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function Feed({ profile = {}, posts = [], email, playlists = [], onToggleSave, onCreatePlaylist, isSaved, currentUserId, allowReplies = true, likedIds, onToggleLike, onShare, onDiscover, onNotifs, onOpenProfile, onCompose }) {
   const myInitial = profile.first?.[0] || email?.[0] || "Y";
   const myName = (profile.first || profile.last) ? `${profile.first || ""} ${profile.last || ""}`.trim() : (profile.handle || "You");
   const [saveTarget, setSaveTarget] = useState(null); // snapshot being saved
   const [viewing, setViewing] = useState(null); // snapshot being zoomed
+  const [seedProfile, setSeedProfile] = useState(null); // tapped seed creator id
+  // A story/post author tap opens the seed profile if it's a curated creator,
+  // otherwise falls through to the host (the user's own profile tab).
+  const openAuthor = (t) => { const id = t?.id && creatorById(t.id) ? t.id : (creatorById(t?.author) ? t.author : null); id ? setSeedProfile(id) : onOpenProfile?.(t); };
   return (
     <div className="ffade">
       {/* header: title + discover people */}
@@ -203,13 +205,14 @@ export default function Feed({ profile = {}, posts = [], email, playlists = [], 
         <span style={{ fontSize: "12px", fontWeight: 700, color: C.accent }}>Post</span>
       </button>
 
-      <StoriesRow onOpenProfile={onOpenProfile} />
+      <StoriesRow onOpenProfile={openAuthor} />
 
       {posts.map(p => <MyPostCard key={p.id} post={p} author={myName} initial={myInitial} onSaveOpen={setSaveTarget} onView={setViewing} saved={isSaved?.(p.id)} liked={likedIds?.has(p.id)} onToggleLike={onToggleLike} onShare={onShare} />)}
-      {SAMPLE_POSTS.map(p => <PostCard key={p.id} post={p} onOpenProfile={onOpenProfile} onSaveOpen={setSaveTarget} onView={setViewing} saved={isSaved?.(p.id)} onShare={onShare} />)}
+      {SAMPLE_POSTS.map(p => <PostCard key={p.id} post={p} onOpenProfile={openAuthor} onSaveOpen={setSaveTarget} onView={setViewing} saved={isSaved?.(p.id)} onShare={onShare} />)}
 
       <SaveSheet snap={saveTarget} playlists={playlists} onToggle={onToggleSave} onCreate={onCreatePlaylist} onClose={() => setSaveTarget(null)} />
       <PostView snap={viewing} onClose={() => setViewing(null)} commentsSlot={viewing && <Comments postId={viewing.id} currentUserId={currentUserId} allowReplies={allowReplies} />} />
+      {seedProfile && <SeedProfile creatorId={seedProfile} onClose={() => setSeedProfile(null)} onView={setViewing} />}
 
       <div style={{ textAlign: "center", color: C.hint, fontSize: "12px", padding: "8px 0 4px", lineHeight: 1.6 }}>
         You're all caught up.<br />Real posts, profiles & following arrive when the social backend goes live.

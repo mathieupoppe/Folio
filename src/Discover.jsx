@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { C } from "./theme";
 import { PostView } from "./Saved";
 import Comments from "./Comments";
-import { searchProfiles, getProfile, getUserPosts, isFollowing, follow, unfollow } from "./social";
+import { searchProfiles, getProfile, getUserPosts, isFollowing, follow, unfollow, blockUser } from "./social";
 
 // Discover people + view a public profile and follow/unfollow them.
 // Self-fetching; call onFollowChanged after follow/unfollow so the home feed refreshes.
@@ -16,13 +16,21 @@ function Avatar({ p, size = 44 }) {
 const nameOf = p => p?.display_name?.trim() || (p?.handle ? "@" + p.handle : "Someone");
 
 // ── Public profile (read-only, with Follow) ──────────────────────────────────
-export function PublicProfile({ userId, currentUserId, onBack, onFollowChanged, onMessage }) {
+export function PublicProfile({ userId, currentUserId, onBack, onFollowChanged, onMessage, onReport }) {
   const [prof, setProf] = useState(null);
   const [posts, setPosts] = useState([]);
   const [following, setFollowing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [view, setView] = useState(null);
+  const [menu, setMenu] = useState(false);
   const isSelf = userId === currentUserId;
+
+  const block = async () => {
+    setMenu(false);
+    if (!window.confirm(`Block @${prof.handle}? They'll disappear from your feed and search, and you'll unfollow each other.`)) return;
+    try { await blockUser(currentUserId, userId); if (following) { await unfollow(currentUserId, userId); } onFollowChanged?.(); onBack?.(); }
+    catch (e) { window.alert("Couldn't block: " + (e?.message || e)); }
+  };
 
   useEffect(() => {
     let on = true;
@@ -49,7 +57,23 @@ export function PublicProfile({ userId, currentUserId, onBack, onFollowChanged, 
 
   return (
     <div className="ffade">
-      <button onClick={onBack} style={{ background: "none", border: "none", color: C.accent, fontSize: "14px", fontWeight: 600, cursor: "pointer", padding: "0 0 12px" }}>← Back</button>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingBottom: "12px" }}>
+        <button onClick={onBack} style={{ background: "none", border: "none", color: C.accent, fontSize: "14px", fontWeight: 600, cursor: "pointer", padding: 0 }}>← Back</button>
+        {!isSelf && (
+          <div style={{ position: "relative" }}>
+            <button onClick={() => setMenu(m => !m)} aria-label="More" style={{ background: "none", border: "none", color: C.text, cursor: "pointer", padding: "2px 6px", fontSize: "20px", lineHeight: 1 }}>⋯</button>
+            {menu && (
+              <>
+                <div onClick={() => setMenu(false)} style={{ position: "fixed", inset: 0, zIndex: 20 }} />
+                <div style={{ position: "absolute", right: 0, top: "28px", zIndex: 21, background: C.card, border: "0.5px solid " + C.border, borderRadius: "12px", overflow: "hidden", minWidth: 160, boxShadow: "0 10px 30px -12px rgba(0,0,0,0.5)" }}>
+                  <button onClick={() => { setMenu(false); onReport?.({ userId, handle: prof.handle }); }} style={{ display: "block", width: "100%", textAlign: "left", padding: "11px 14px", background: "none", border: "none", borderBottom: "0.5px solid " + C.border, color: C.text, fontSize: "13px", fontWeight: 600, cursor: "pointer" }}>Report account</button>
+                  <button onClick={block} style={{ display: "block", width: "100%", textAlign: "left", padding: "11px 14px", background: "none", border: "none", color: C.down, fontSize: "13px", fontWeight: 600, cursor: "pointer" }}>Block</button>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+      </div>
       <div style={{ fontSize: "17px", fontWeight: 800, color: C.text, marginBottom: "14px" }}>{prof.handle ? "@" + prof.handle : "Profile"}</div>
       <div style={{ display: "flex", alignItems: "center", gap: "18px", marginBottom: "14px" }}>
         <Avatar p={prof} size={82} />
@@ -74,7 +98,7 @@ export function PublicProfile({ userId, currentUserId, onBack, onFollowChanged, 
           ))}
         </div>
       ) : <div style={{ textAlign: "center", color: C.hint, fontSize: "13px", padding: "24px" }}>No posts yet.</div>}
-      <PostView snap={view} onClose={() => setView(null)} commentsSlot={view && <Comments postId={view.id} currentUserId={currentUserId} allowReplies />} />
+      <PostView snap={view} onClose={() => setView(null)} onReport={isSelf ? undefined : (s) => onReport?.({ postId: s.id })} commentsSlot={view && <Comments postId={view.id} currentUserId={currentUserId} allowReplies />} />
     </div>
   );
 }
