@@ -59,23 +59,36 @@ function PostMedia({ media, kind }) {
   );
 }
 
+// Full-bleed cards: media reaches the screen edges, the rest stays padded.
+const fullBleed = { background: C.card, overflow: "hidden", marginInline: "-1rem", marginBottom: "10px", borderBottom: "0.5px solid " + C.border };
+const innerPad = "10px 16px 16px";
+
+// Author chip overlaid on the media with a dark scrim — clean, "hovering" look.
+function OverlayHeader({ initial, name, sub, onOpen }) {
+  return (
+    <div style={{ position: "absolute", top: 0, left: 0, right: 0, zIndex: 2, padding: "12px 14px", display: "flex", alignItems: "center", background: "linear-gradient(to bottom, rgba(0,0,0,0.55), rgba(0,0,0,0))", pointerEvents: "none" }}>
+      <button onClick={e => { e.stopPropagation(); onOpen?.(); }} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: "9px", padding: 0, minWidth: 0, pointerEvents: "auto" }}>
+        <Avatar initial={initial} size={34} />
+        <span style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", minWidth: 0 }}>
+          <span style={{ fontSize: "13px", fontWeight: 700, color: "#fff", textShadow: "0 1px 4px rgba(0,0,0,0.6)" }}>{name}</span>
+          {sub && <span style={{ fontSize: "11px", color: "rgba(255,255,255,0.85)", textShadow: "0 1px 3px rgba(0,0,0,0.5)" }}>{sub}</span>}
+        </span>
+      </button>
+    </div>
+  );
+}
+
 function PostCard({ post, onOpenProfile, onSaveOpen, onView, saved, onShare }) {
   const [liked, setLiked] = useState(false);
   const likeCount = post.likes + (liked ? 1 : 0);
   const snap = { id: post.id, author: post.author, handle: post.handle, initial: post.initial, time: post.time, tag: post.tag, kind: post.kind, caption: post.caption, image: null, media: post.media };
   return (
-    <div style={{ background: C.card, border: "0.5px solid " + C.border, borderRadius: "18px", overflow: "hidden", marginBottom: "16px" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "12px 14px" }}>
-        <button onClick={() => onOpenProfile?.(post)} style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: "10px", padding: 0, minWidth: 0 }}>
-          <Avatar initial={post.initial} size={38} />
-          <span style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", minWidth: 0 }}>
-            <span style={{ fontSize: "13px", fontWeight: 700, color: C.text }}>{post.author}</span>
-            <span style={{ fontSize: "11px", color: C.hint }}>{post.time} · {post.tag}</span>
-          </span>
-        </button>
+    <div style={fullBleed}>
+      <div onClick={() => onView?.(snap)} style={{ cursor: "pointer", position: "relative" }}>
+        <OverlayHeader initial={post.initial} name={post.author} sub={`${post.time} · ${post.tag}`} onOpen={() => onOpenProfile?.(post)} />
+        <PostMedia media={post.media} kind={post.kind} />
       </div>
-      <div onClick={() => onView?.(snap)} style={{ cursor: "pointer" }}><PostMedia media={post.media} kind={post.kind} /></div>
-      <div style={{ padding: "10px 14px 14px" }}>
+      <div style={{ padding: innerPad }}>
         <div style={{ display: "flex", alignItems: "center", gap: "18px", marginBottom: "8px" }}>
           <button onClick={() => setLiked(v => !v)} aria-label="Like" style={{ background: "none", border: "none", cursor: "pointer", padding: 0, color: liked ? C.down : C.text, display: "flex", alignItems: "center", gap: "6px", fontSize: "13px", fontWeight: 600 }}>
             <svg width="22" height="22" viewBox="0 0 24 24" fill={liked ? C.down : "none"} stroke={liked ? C.down : C.text} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1.1 1L12 21l7.7-7.6 1.1-1a5.5 5.5 0 0 0 0-7.8z" /></svg>
@@ -106,16 +119,22 @@ function MyPostCard({ post, author, initial, onSaveOpen, onView, saved, liked, o
   const when = (() => { try { return new Date(post.createdAt).toLocaleDateString(); } catch { return ""; } })();
   const snap = { id: post.id, author, handle: "@" + author, initial, time: when, tag: "You", kind: post.image ? "photo" : "text", caption: post.caption, image: post.image || null, media: null };
   return (
-    <div style={{ background: C.card, border: "0.5px solid " + C.border, borderRadius: "18px", overflow: "hidden", marginBottom: "16px" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "12px 14px" }}>
-        <Avatar initial={initial} size={38} />
-        <span style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
-          <span style={{ fontSize: "13px", fontWeight: 700, color: C.text }}>{author}</span>
-          <span style={{ fontSize: "11px", color: C.hint }}>{when} · You</span>
-        </span>
-      </div>
-      {post.image && <img src={post.image} alt="" onClick={() => onView?.(snap)} style={{ width: "100%", maxHeight: 420, objectFit: "cover", borderTop: "0.5px solid " + C.border, borderBottom: "0.5px solid " + C.border, display: "block", cursor: "pointer" }} />}
-      <div style={{ padding: "10px 14px 14px" }}>
+    <div style={fullBleed}>
+      {post.image ? (
+        <div onClick={() => onView?.(snap)} style={{ position: "relative", cursor: "pointer" }}>
+          <OverlayHeader initial={initial} name={author} sub={`${when} · You`} />
+          <img src={post.image} alt="" style={{ width: "100%", maxHeight: 520, objectFit: "cover", display: "block" }} />
+        </div>
+      ) : (
+        <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "14px 16px 4px" }}>
+          <Avatar initial={initial} size={36} />
+          <span style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
+            <span style={{ fontSize: "13px", fontWeight: 700, color: C.text }}>{author}</span>
+            <span style={{ fontSize: "11px", color: C.hint }}>{when} · You</span>
+          </span>
+        </div>
+      )}
+      <div style={{ padding: innerPad }}>
         <div style={{ display: "flex", alignItems: "center", gap: "18px", marginBottom: post.caption ? "8px" : 0 }}>
           <button onClick={() => onToggleLike?.(post.id)} aria-label="Like" style={{ background: "none", border: "none", cursor: "pointer", padding: 0, color: liked ? C.down : C.text, display: "flex", alignItems: "center", gap: "6px", fontSize: "13px", fontWeight: 600 }}>
             <svg width="22" height="22" viewBox="0 0 24 24" fill={liked ? C.down : "none"} stroke={liked ? C.down : C.text} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1.1 1L12 21l7.7-7.6 1.1-1a5.5 5.5 0 0 0 0-7.8z" /></svg>
@@ -174,7 +193,35 @@ function SeedProfile({ creatorId, onClose, onView }) {
   );
 }
 
-export default function Feed({ profile = {}, posts = [], email, playlists = [], onToggleSave, onCreatePlaylist, isSaved, currentUserId, allowReplies = true, likedIds, onToggleLike, onShare, onDiscover, onNotifs, onOpenProfile, onCompose }) {
+// A celebratory "moment" — a money event detected from the user's own data,
+// one tap away from becoming a post. This is the retention loop's payoff.
+function MomentCard({ event, onPost, onDismiss }) {
+  const big = event.big, sub = event.sub, trend = event.trend;
+  const col = trend === "up" ? C.up : trend === "down" ? C.down : C.text;
+  return (
+    <div style={{ background: C.card, border: "0.5px solid " + C.accent + "66", borderRadius: "16px", padding: "14px 16px", marginBottom: "14px", boxShadow: "0 8px 24px -16px " + C.accent }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "10px" }}>
+        <span style={{ fontSize: "11px", fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", color: C.accent }}>✨ {event.title}</span>
+        <button onClick={() => onDismiss?.(event.key)} aria-label="Dismiss" style={{ background: "none", border: "none", color: C.hint, cursor: "pointer", fontSize: "16px", padding: "0 2px", lineHeight: 1 }}>✕</button>
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ display: "flex", alignItems: "baseline", gap: "8px" }}>
+            <span style={{ fontSize: "30px", fontWeight: 800, letterSpacing: "-0.02em", color: col, lineHeight: 1 }}>{big}</span>
+            <span style={{ fontSize: "12px", color: C.sub }}>{sub}</span>
+          </div>
+          <div style={{ fontSize: "13px", color: C.text, lineHeight: 1.45, marginTop: "8px" }}>{event.caption}</div>
+        </div>
+      </div>
+      <div style={{ display: "flex", gap: "8px", marginTop: "12px" }}>
+        <button onClick={() => onPost?.(event)} style={{ flex: 1, padding: "10px", borderRadius: "10px", border: "none", background: C.accent, color: C.onAccent, fontSize: "13px", fontWeight: 700, cursor: "pointer" }}>Share to feed</button>
+        <button onClick={() => onDismiss?.(event.key)} style={{ padding: "10px 16px", borderRadius: "10px", border: "0.5px solid " + C.border, background: C.surface, color: C.text, fontSize: "13px", fontWeight: 700, cursor: "pointer" }}>Not now</button>
+      </div>
+    </div>
+  );
+}
+
+export default function Feed({ profile = {}, posts = [], email, playlists = [], onToggleSave, onCreatePlaylist, isSaved, currentUserId, allowReplies = true, likedIds, onToggleLike, onShare, events = [], onPostEvent, onDismissEvent, onDiscover, onNotifs, onOpenProfile, onCompose }) {
   const myInitial = profile.first?.[0] || email?.[0] || "Y";
   const myName = (profile.first || profile.last) ? `${profile.first || ""} ${profile.last || ""}`.trim() : (profile.handle || "You");
   const [saveTarget, setSaveTarget] = useState(null); // snapshot being saved
@@ -206,6 +253,8 @@ export default function Feed({ profile = {}, posts = [], email, playlists = [], 
       </button>
 
       <StoriesRow onOpenProfile={openAuthor} />
+
+      {events.slice(0, 2).map(e => <MomentCard key={e.key} event={e} onPost={onPostEvent} onDismiss={onDismissEvent} />)}
 
       {posts.map(p => <MyPostCard key={p.id} post={p} author={myName} initial={myInitial} onSaveOpen={setSaveTarget} onView={setViewing} saved={isSaved?.(p.id)} liked={likedIds?.has(p.id)} onToggleLike={onToggleLike} onShare={onShare} />)}
       {SAMPLE_POSTS.map(p => <PostCard key={p.id} post={p} onOpenProfile={openAuthor} onSaveOpen={setSaveTarget} onView={setViewing} saved={isSaved?.(p.id)} onShare={onShare} />)}

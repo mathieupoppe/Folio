@@ -29,6 +29,7 @@ import HoldingsEditor from "./Holdings";
 import BudgetTool, { budgetPeriod } from "./Budget";
 import DebtsTool from "./Debts";
 import { currentStreak, computeAchievements } from "./lib/achievements";
+import { detectEvents } from "./lib/events";
 import { exportTransactionsCSV, openPrintableReport } from "./reports";
 import { getRate } from "./fx";
 import { readLock, writeLock } from "./lock";
@@ -721,6 +722,7 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
   const [debtStrategy, setDebtStrategy] = useState(s0.debtStrategy ?? "avalanche");
   const [holdingsQuotes, setHoldingsQuotes] = useState([]);            // live prices for holdings (transient)
   const [nwHistory,   setNwHistory]   = useState(s0.nwHistory   ?? []); // [{date, value}] daily snapshots
+  const [seenEvents,  setSeenEvents]  = useState(s0.seenEvents  ?? []); // money-event keys already celebrated (retention loop)
   const [goals,       setGoals]       = useState(s0.goals       ?? []); // [{id, name, target, saved}]
   const [subs,        setSubs]        = useState(s0.subs        ?? []); // [{id, name, amount, cycle}]
   const [watchlist,   setWatchlist]   = useState(s0.watchlist   ?? ["bitcoin", "ethereum", "pax-gold"]); // CoinGecko ids
@@ -785,6 +787,7 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
     if (st.debtStrategy) setDebtStrategy(st.debtStrategy);
     if (Array.isArray(st.liabilities)) setLiabilities(st.liabilities);
     if (Array.isArray(st.nwHistory))   setNwHistory(st.nwHistory);
+    if (Array.isArray(st.seenEvents))  setSeenEvents(st.seenEvents);
     if (Array.isArray(st.goals))       setGoals(st.goals);
     if (Array.isArray(st.subs))        setSubs(st.subs);
     if (Array.isArray(st.dashOrder))   setDashOrder(st.dashOrder);
@@ -820,7 +823,7 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
 
   // local cache always; debounced, conflict-aware cloud save once hydrated
   useEffect(() => {
-    const blob = { settings: { income, spendPct, investBuckets, spendBuckets, principal, monthly, years, rate, assets, liabilities, nwHistory, goals, subs, profile, posts, playlists, toolPins, toolHidden, dashOrder, dashHidden, subTracking, watchlist, holdings, budget, debts, debtBudget, debtStrategy }, entries };
+    const blob = { settings: { income, spendPct, investBuckets, spendBuckets, principal, monthly, years, rate, assets, liabilities, nwHistory, goals, subs, profile, posts, playlists, toolPins, toolHidden, dashOrder, dashHidden, subTracking, watchlist, holdings, budget, debts, debtBudget, debtStrategy, seenEvents }, entries };
     try { localStorage.setItem(LOCAL_KEY, JSON.stringify(blob)); }
     catch (e) { console.warn("Folio: couldn't save to local storage —", e?.message || e); }
     if (!hydrated.current || !userId) return;
@@ -841,7 +844,7 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
       }).catch(() => setSync("error"));
     }, 800);
     return () => clearTimeout(t);
-  }, [income, spendPct, investBuckets, spendBuckets, principal, monthly, years, rate, assets, liabilities, nwHistory, goals, subs, profile, posts, playlists, toolPins, toolHidden, dashOrder, dashHidden, subTracking, watchlist, holdings, budget, debts, debtBudget, debtStrategy, entries, userId, retryNonce]);
+  }, [income, spendPct, investBuckets, spendBuckets, principal, monthly, years, rate, assets, liabilities, nwHistory, goals, subs, profile, posts, playlists, toolPins, toolHidden, dashOrder, dashHidden, subTracking, watchlist, holdings, budget, debts, debtBudget, debtStrategy, seenEvents, entries, userId, retryNonce]);
 
   // ── Social (Phase 1): load table-backed profile + posts + feed; migrate once ──
   const refreshSocial = async () => {
@@ -1126,6 +1129,19 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
     })() : null,
   };
 
+  // ── Retention loop: detect "money events" from the user's own data, minus the
+  // ones already celebrated, and surface them as shareable moments. ─────────────
+  const savingsRatePct = income > 0 ? (investable / income) * 100 : 0;
+  const emergencyMonths = spendMoney > 0 ? totalAssets / spendMoney : 0;
+  const allEvents = detectEvents({ netWorth, totalAssets, nwHistory, goals, savingsRate: savingsRatePct, emergencyMonths, symbol: curSymbol() });
+  const newEvents = allEvents.filter(e => !seenEvents.includes(e.key));
+  const dismissEvent = (key) => setSeenEvents(prev => prev.includes(key) ? prev : [...prev, key]);
+  const postEvent = async (e) => {
+    dismissEvent(e.key);
+    try { await onCreatePost({ caption: e.caption }); setTab("feed"); setFeedView("home"); }
+    catch (err) { window.alert("Couldn't post: " + (err?.message || err)); }
+  };
+
   // keep live prices for holdings fresh so net worth tracks the market
   const holdingIds = holdings.map(h => h.id).sort().join(",");
   useEffect(() => {
@@ -1248,6 +1264,7 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
             currentUserId={userId} allowReplies={socialProfile?.allow_replies ?? true}
             likedIds={likedIds} onToggleLike={onToggleLike}
             onShare={setShareTarget}
+            events={newEvents} onPostEvent={postEvent} onDismissEvent={dismissEvent}
             onDiscover={() => setFeedView("discover")}
             onNotifs={() => setFeedView("notifs")}
             onCompose={() => setTab("profile")} onOpenProfile={() => setTab("profile")} />
@@ -1256,7 +1273,7 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
           <><div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "14px" }}>
             <button onClick={() => setFeedView("home")} style={{ background: "none", border: "none", color: C.accent, fontSize: "14px", fontWeight: 600, cursor: "pointer", padding: 0 }}>← Feed</button>
             <span style={{ fontSize: "17px", fontWeight: 800, color: C.text }}>Notifications</span>
-          </div><NotificationsView userId={userId} /></>
+          </div><NotificationsView userId={userId} moneyEvents={newEvents} onPostEvent={postEvent} onDismissEvent={dismissEvent} /></>
         )}
         {tab === "feed" && feedView === "discover" && (
           <Discover currentUserId={userId} onBack={() => setFeedView("home")} onOpenUser={(id) => { setViewUser(id); setFeedView("user"); }} />

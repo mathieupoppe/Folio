@@ -129,8 +129,24 @@ function ActorRow({ a, meta }) {
   );
 }
 
-// In-app notifications: recent likes + comments on your posts, time-sorted.
-export function NotificationsView({ userId }) {
+// A money-event notification row — your own progress, one tap from a post.
+function MoneyEventRow({ e, onPost, onDismiss }) {
+  const col = e.trend === "up" ? C.up : e.trend === "down" ? C.down : C.text;
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: "12px", padding: "11px 4px", borderBottom: "0.5px solid " + C.border }}>
+      <span style={{ width: 40, height: 40, borderRadius: "50%", background: C.accent + "1f", color: col, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: "14px", flexShrink: 0 }}>{e.big}</span>
+      <span style={{ flex: 1, minWidth: 0 }}>
+        <span style={{ display: "block", fontSize: "13px", fontWeight: 700, color: C.text }}>{e.title}</span>
+        <span style={{ fontSize: "12px", color: C.hint, lineHeight: 1.4 }}>{e.caption}</span>
+      </span>
+      <button onClick={() => onPost?.(e)} style={{ flexShrink: 0, padding: "7px 12px", borderRadius: "999px", border: "none", background: C.accent, color: C.onAccent, fontSize: "12px", fontWeight: 700, cursor: "pointer" }}>Share</button>
+      <button onClick={() => onDismiss?.(e.key)} aria-label="Dismiss" style={{ flexShrink: 0, background: "none", border: "none", color: C.hint, cursor: "pointer", fontSize: "15px", padding: "0 2px" }}>✕</button>
+    </div>
+  );
+}
+
+// In-app notifications: your money moments first, then likes + comments.
+export function NotificationsView({ userId, moneyEvents = [], onPostEvent, onDismissEvent }) {
   const [data, setData] = useState(null);
   useEffect(() => { getActivity(userId).then(setData).catch(() => setData({ recentLikes: [], recentComments: [] })); }, [userId]);
   if (data === null) return <div style={{ color: C.hint, fontSize: "13px", padding: "20px", textAlign: "center" }}>Loading…</div>;
@@ -138,13 +154,22 @@ export function NotificationsView({ userId }) {
     ...data.recentLikes.map(a => ({ ...a, kind: "like" })),
     ...data.recentComments.map(a => ({ ...a, kind: "comment" })),
   ].sort((a, b) => (b.created_at || "").localeCompare(a.created_at || ""));
-  if (!items.length) return <div style={{ textAlign: "center", color: C.hint, fontSize: "13px", padding: "40px 16px", lineHeight: 1.6 }}>No activity yet.<br />When people like or comment on your posts, you'll see it here.</div>;
+  if (!items.length && !moneyEvents.length) return <div style={{ textAlign: "center", color: C.hint, fontSize: "13px", padding: "40px 16px", lineHeight: 1.6 }}>No activity yet.<br />When your money hits a milestone, or people like your posts, you’ll see it here.</div>;
   return (
-    <div style={card}>
-      {items.map((a, i) => (
-        <ActorRow key={i} a={a} meta={a.kind === "like" ? "liked your post" : `commented: ${a.body}`} />
-      ))}
-    </div>
+    <>
+      {moneyEvents.length > 0 && (
+        <div style={{ ...card, marginBottom: items.length ? "12px" : 0 }}>
+          {moneyEvents.map(e => <MoneyEventRow key={e.key} e={e} onPost={onPostEvent} onDismiss={onDismissEvent} />)}
+        </div>
+      )}
+      {items.length > 0 && (
+        <div style={card}>
+          {items.map((a, i) => (
+            <ActorRow key={i} a={a} meta={a.kind === "like" ? "liked your post" : `commented: ${a.body}`} />
+          ))}
+        </div>
+      )}
+    </>
   );
 }
 
