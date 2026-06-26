@@ -62,6 +62,14 @@ export async function enablePush(userId) {
   return "on";
 }
 
+// Ask the notify edge function to push a test notification to this device.
+// Returns the number of notifications sent. Requires the function deployed.
+export async function sendTestPush() {
+  const { data, error } = await supabase.functions.invoke("notify", { body: { test: true } });
+  if (error) throw error;
+  return data?.sent ?? 0;
+}
+
 // Opt out: unsubscribe locally and remove the row.
 export async function disablePush() {
   try {

@@ -22,11 +22,19 @@ import { detectEvents } from "./events.ts";
 
 const sum = (xs: { amount?: number }[] = []) => xs.reduce((s, x) => s + (x.amount || 0), 0);
 
+const cors = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-cron-secret",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
+const json = (body: unknown, status = 200) =>
+  new Response(JSON.stringify(body), { status, headers: { ...cors, "Content-Type": "application/json" } });
+
 Deno.serve(async (req) => {
-  // Only the scheduler may call this.
-  if (req.headers.get("x-cron-secret") !== Deno.env.get("CRON_SECRET")) {
-    return new Response("forbidden", { status: 403 });
-  }
+  if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
+
+  const body = await req.json().catch(() => ({}));
+  const isCron = req.headers.get("x-cron-secret") === Deno.env.get("CRON_SECRET");
 
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL")!,
@@ -38,6 +46,28 @@ Deno.serve(async (req) => {
     Deno.env.get("VAPID_PUBLIC_KEY")!,
     Deno.env.get("VAPID_PRIVATE_KEY")!,
   );
+
+  // ── Test path: a signed-in user pings their own devices to verify delivery ──
+  if (body?.test) {
+    const authHeader = req.headers.get("Authorization") || "";
+    const userClient = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!, {
+      global: { headers: { Authorization: authHeader } },
+    });
+    const { data: { user } } = await userClient.auth.getUser();
+    if (!user) return json({ error: "unauthorized" }, 401);
+    const { data: mine } = await supabase.from("push_subscriptions").select("endpoint, keys").eq("user_id", user.id);
+    if (!mine?.length) return json({ sent: 0, hint: "no subscription on this account yet" });
+    const payload = JSON.stringify({ title: "Folio", body: "Test notification ✅ Push is working.", url: "/", tag: "folio-test" });
+    let sent = 0;
+    for (const s of mine) {
+      try { await webpush.sendNotification({ endpoint: s.endpoint, keys: s.keys as any }, payload); sent++; }
+      catch (err) { const code = (err as { statusCode?: number })?.statusCode; if (code === 404 || code === 410) await supabase.from("push_subscriptions").delete().eq("endpoint", s.endpoint); }
+    }
+    return json({ sent });
+  }
+
+  // ── Cron path: scheduled scan of everyone's money events ────────────────────
+  if (!isCron) return json({ error: "forbidden" }, 403);
 
   // Only users who actually have a subscription are worth processing.
   const { data: subs } = await supabase.from("push_subscriptions").select("endpoint, user_id, keys");

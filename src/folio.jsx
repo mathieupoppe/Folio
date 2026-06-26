@@ -30,7 +30,7 @@ import BudgetTool, { budgetPeriod } from "./Budget";
 import DebtsTool from "./Debts";
 import { currentStreak, computeAchievements } from "./lib/achievements";
 import { detectEvents } from "./lib/events";
-import { pushState, enablePush, disablePush } from "./push";
+import { pushState, enablePush, disablePush, sendTestPush } from "./push";
 import { exportTransactionsCSV, openPrintableReport } from "./reports";
 import { getRate } from "./fx";
 import { readLock, writeLock } from "./lock";
@@ -122,6 +122,12 @@ function PushNotifSettings({ userId }) {
     catch (e) { window.alert("Couldn't update notifications: " + (e?.message || e)); }
     finally { setBusy(false); }
   };
+  const [testMsg, setTestMsg] = useState("");
+  const test = async () => {
+    setTestMsg("Sending…");
+    try { const n = await sendTestPush(); setTestMsg(n > 0 ? "Sent — check your notifications." : "No device registered yet."); }
+    catch (e) { setTestMsg("Failed: " + (e?.message || e)); }
+  };
   const on = state === "on";
   const note = {
     loading: "Checking…",
@@ -145,6 +151,12 @@ function PushNotifSettings({ userId }) {
           </button>
         )}
       </div>
+      {on && (
+        <div style={{ marginTop: "12px", paddingTop: "12px", borderTop: "0.5px solid " + C.border, display: "flex", alignItems: "center", gap: "10px" }}>
+          <button onClick={test} style={{ padding: "8px 14px", borderRadius: "10px", border: "0.5px solid " + C.border, background: C.surface, color: C.text, fontSize: "12px", fontWeight: 700, cursor: "pointer" }}>Send a test notification</button>
+          {testMsg && <span style={{ fontSize: "12px", color: C.hint }}>{testMsg}</span>}
+        </div>
+      )}
     </Card>
   );
 }
