@@ -7,7 +7,10 @@
 // Deploy:
 //   supabase secrets set VAPID_PUBLIC_KEY=...  VAPID_PRIVATE_KEY=...  \
 //                        VAPID_SUBJECT=mailto:you@folio.app  CRON_SECRET=<random>
-//   supabase functions deploy notify
+//   supabase functions deploy notify --no-verify-jwt
+//   (--no-verify-jwt is REQUIRED: the daily cron call has no JWT, only the
+//    x-cron-secret header. This function does its own auth — cron secret for the
+//    scheduled scan, and an explicit auth.getUser() check for the test path.)
 //
 // Schedule it daily with pg_cron (run once in the SQL editor):
 //   select cron.schedule('folio-notify','0 9 * * *', $$
