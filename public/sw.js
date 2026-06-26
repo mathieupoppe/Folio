@@ -13,6 +13,34 @@ self.addEventListener("activate", event => {
   );
 });
 
+// ── Push notifications ───────────────────────────────────────────────────────
+// The notify edge function sends a JSON payload: { title, body, url, tag }.
+self.addEventListener("push", event => {
+  let data = {};
+  try { data = event.data ? event.data.json() : {}; } catch { data = { body: event.data && event.data.text() }; }
+  const title = data.title || "Folio";
+  const options = {
+    body: data.body || "",
+    icon: "/icon.svg",
+    badge: "/icon.svg",
+    tag: data.tag || "folio-moment",
+    data: { url: data.url || "/" },
+  };
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+// Focus an existing tab (or open one) and route to the relevant screen.
+self.addEventListener("notificationclick", event => {
+  event.notification.close();
+  const target = (event.notification.data && event.notification.data.url) || "/";
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(list => {
+      for (const c of list) { if ("focus" in c) { c.navigate(target); return c.focus(); } }
+      return self.clients.openWindow(target);
+    }),
+  );
+});
+
 self.addEventListener("fetch", event => {
   const req = event.request;
   if (req.method !== "GET") return;

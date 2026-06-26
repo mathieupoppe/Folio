@@ -30,6 +30,7 @@ import BudgetTool, { budgetPeriod } from "./Budget";
 import DebtsTool from "./Debts";
 import { currentStreak, computeAchievements } from "./lib/achievements";
 import { detectEvents } from "./lib/events";
+import { pushState, enablePush, disablePush } from "./push";
 import { exportTransactionsCSV, openPrintableReport } from "./reports";
 import { getRate } from "./fx";
 import { readLock, writeLock } from "./lock";
@@ -108,6 +109,44 @@ function EditableMoney({ value, onCommit, color }) {
 
 function Card({ children, style, className }) {
   return <div className={className} style={{ background: C.cardGrad, borderRadius: "18px", border: "0.5px solid " + C.border, boxShadow: C.shadow + ", " + C.hi, padding: "1.05rem 1.15rem", marginBottom: "12px", ...style }}>{children}</div>;
+}
+
+// Settings → Notifications: opt in/out of Web Push for money-moment alerts.
+function PushNotifSettings({ userId }) {
+  const [state, setState] = useState("loading"); // loading|unsupported|unconfigured|denied|off|on
+  const [busy, setBusy] = useState(false);
+  useEffect(() => { pushState().then(setState).catch(() => setState("off")); }, []);
+  const toggle = async () => {
+    if (busy) return; setBusy(true);
+    try { setState(state === "on" ? await disablePush() : await enablePush(userId)); }
+    catch (e) { window.alert("Couldn't update notifications: " + (e?.message || e)); }
+    finally { setBusy(false); }
+  };
+  const on = state === "on";
+  const note = {
+    loading: "Checking…",
+    unsupported: "This browser doesn't support push notifications. They'll work in the native app.",
+    unconfigured: "Push isn't configured on this build yet (missing VAPID key).",
+    denied: "Notifications are blocked in your browser settings — enable them there first.",
+    off: "Get a nudge the moment your net worth hits a milestone, a goal completes, or your savings streak grows — even when Folio is closed.",
+    on: "You're set. We'll ping you when your money hits a moment worth sharing.",
+  }[state];
+  const interactive = state === "on" || state === "off";
+  return (
+    <Card>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px" }}>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: "14px", fontWeight: 700, color: C.text }}>Money moment alerts</div>
+          <div style={{ fontSize: "12px", color: C.hint, marginTop: "3px", lineHeight: 1.5 }}>{note}</div>
+        </div>
+        {interactive && (
+          <button role="switch" aria-checked={on} aria-label="Money moment alerts" disabled={busy} onClick={toggle} style={{ width: 46, height: 28, borderRadius: "999px", border: "none", cursor: busy ? "default" : "pointer", flexShrink: 0, background: on ? C.up : C.border, position: "relative", transition: "background .2s", opacity: busy ? 0.6 : 1 }}>
+            <span style={{ position: "absolute", top: 3, left: on ? 21 : 3, width: 22, height: 22, borderRadius: "50%", background: "#fff", transition: "left .2s" }} />
+          </button>
+        )}
+      </div>
+    </Card>
+  );
 }
 
 function Label({ text, hint }) {
@@ -2377,10 +2416,8 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
 
           {moreView === "notifications" && <>
             <BackBar title="Notifications" onBack={() => setMoreView("menu")} />
-            <Card>
-              <Label text="Notifications" hint="Coming soon." />
-              <div style={{ fontSize: "13px", color: C.sub, lineHeight: 1.6 }}>Reminders to log transactions, monthly check-ins and goal alerts will live here — arriving with the native app so they can use real push notifications.</div>
-            </Card>
+            <PushNotifSettings userId={userId} />
+            <div style={{ fontSize: "11px", color: C.hint, textAlign: "center", padding: "4px 8px", lineHeight: 1.6 }}>Transaction reminders & monthly check-ins arrive with bank sync. On iPhone, add Folio to your Home Screen first for push to work.</div>
           </>}
 
           {moreView === "stats" && (() => {
