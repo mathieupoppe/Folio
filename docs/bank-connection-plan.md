@@ -1,55 +1,72 @@
-# Folio — Bank Connection Plan (GoCardless Bank Account Data)
+# Folio — Bank Connection Plan (Enable Banking)
 
 The automation anchor: connect a real bank, read balances + transactions, and let
 them flow automatically into net worth, the activity log, budgets, and the
 retention-loop money events. "When you buy something, your portfolio updates."
 
 This plan is **read-only** (open banking AIS — account information). Folio never
-moves money. Provider: **GoCardless Bank Account Data** (formerly Nordigen) — free
-tier, EU/UK coverage, no per-call cost. US (Plaid) is a later, separate adapter.
+moves money.
+
+> **Provider note (2026-06):** the original plan used GoCardless Bank Account Data
+> (Nordigen), but it **closed to new signups and is being wound down** — not an
+> option. We're switching to **Enable Banking** (https://enablebanking.com/), the
+> closest self-serve EU replacement: 2,700+ banks / 30 countries, JWT REST API.
+> The architecture below is provider-agnostic — only auth + a few endpoints differ.
+>
+> **Pricing reality:** Enable Banking's free **"Restricted Production"** tier only
+> connects **accounts you link yourself** — ideal to build, dogfood, and demo on
+> Mathieu's own bank for free. Opening it to *other* users at launch needs their
+> paid production tier (sales-gated). So: free to build + prove now, paid later
+> when real users connect. US would be a separate adapter (Plaid/Teller).
 
 ---
 
-## 0. What you need to do first (one-time, ~15 min)
+## 0. What you need to do first (one-time, ~20 min)
 
-1. Sign up at **https://bankaccountdata.gocardless.com/** (free, separate from the
-   GoCardless payments product). Pick your region.
-2. In the portal → **Developers → User secrets** → create a secret. You get a
-   **`secret_id`** and **`secret_key`**. Copy both (the key is shown once).
-3. That's it — no redirect URL to pre-register (we pass it per-request).
+1. Sign up at **https://enablebanking.com/** → register an **application** in their
+   control panel and choose **Restricted Production** (free; works on your own
+   linked accounts).
+2. Enable Banking auth uses an **RSA keypair**, not a shared secret:
+   - Generate a keypair: `openssl genrsa -out enablebanking_private.pem 2048`
+     then `openssl rsa -in enablebanking_private.pem -pubout -out enablebanking_public.pem`.
+   - Upload the **public** key in their panel; you get an **Application ID** (a UUID).
+   - Keep the **private** key safe — it signs a short-lived JWT to call their API.
+3. Note your **redirect URL** (your live Vercel/domain, e.g.
+   `https://folio.app/?bank=callback`) — set it as an allowed redirect in the panel.
 
-Then I'll set them as Supabase secrets (server-only, never in the browser):
+Then I'll set these as Supabase secrets (server-only, never in the browser):
 ```bash
-supabase secrets set GOCARDLESS_SECRET_ID=...  GOCARDLESS_SECRET_KEY=...
+supabase secrets set ENABLEBANKING_APP_ID=...  ENABLEBANKING_PRIVATE_KEY="$(cat enablebanking_private.pem)"
 ```
 
-**Free-tier limits that shape the design:** ~4 transaction/balance pulls **per
-account per day** (then HTTP 429). So we **store** everything in our DB and
-**sync on a schedule** (1–2×/day), never live-fetch on every screen view.
+**Design constraint:** open-banking access tokens / consents are time-limited
+(typically 90 days) and providers rate-limit refreshes, so we **store** everything
+in our DB and **sync on a schedule** (1–2×/day), never live-fetch on every view.
 
 ---
 
 ## 1. How the connection works (the flow)
 
-GoCardless uses a hosted consent screen (like "Sign in with your bank"):
+Enable Banking uses a hosted consent screen (like "Sign in with your bank"). We
+authenticate to their API with a **JWT signed by our private key** (the `Authorization:
+Bearer <jwt>` header), then:
 
 ```
-1. GET  /api/v2/token/new/            (secret_id + secret_key)  → access + refresh token
-2. GET  /api/v2/institutions/?country=BE                        → list of banks (+ logos, ids)
-3. POST /api/v2/agreements/enduser/   (institution, 90d history, 90d access)   → agreement id
-4. POST /api/v2/requisitions/         (institution, agreement, redirect, reference=user_id)
-                                                                → { id, link }
-5. User opens `link` → authenticates at their bank → redirected back to Folio with ?ref=...
-6. GET  /api/v2/requisitions/{id}/                              → status + accounts[] (ids)
-7. per account:
-     GET /api/v2/accounts/{id}/details/      → iban, name, currency
-     GET /api/v2/accounts/{id}/balances/     → current balance
-     GET /api/v2/accounts/{id}/transactions/ → booked[] + pending[]
+1. (each call) build a JWT signed with the RSA private key  →  Authorization: Bearer <jwt>
+2. GET  /aspsps?country=BE                         → list of banks (name, logo, id)
+3. POST /auth   { aspsp, redirect_url, state=user_id, valid_until }   → { url }  (consent link)
+4. User opens `url` → authenticates at their bank → redirected back with ?code=...&state=...
+5. POST /sessions { code }                         → { session_id, accounts[] (uids) }
+6. per account:
+     GET /accounts/{uid}/details        → iban, name, currency
+     GET /accounts/{uid}/balances       → current balance
+     GET /accounts/{uid}/transactions   → booked[] + pending[]
 ```
 
-- **Access token** lives ~24h, **refresh token** ~30d → we cache + refresh server-side.
-- **Requisitions expire** (consent is time-limited, ~90 days) → the user re-consents
-  periodically. We surface "reconnect" when status flips to expired.
+- The signing **JWT is short-lived** (minutes) — we mint one per call server-side;
+  there's no long-lived token to store, just the private key (a Supabase secret).
+- **Sessions/consent expire** (~90 days) → the user re-consents periodically. We
+  surface "reconnect" when a session returns expired/invalid.
 
 ---
 
@@ -95,16 +112,19 @@ create table bank_transactions (
   created_at    timestamptz default now()
 );
 
--- Server-side GoCardless token cache (single row, service-role only).
-create table gocardless_token (
-  id integer primary key default 1,
-  access_token text, access_expires timestamptz,
-  refresh_token text, refresh_expires timestamptz
+-- One row per linked session (Enable Banking consent), to know when to reconnect.
+create table bank_sessions (
+  id           text primary key,                   -- Enable Banking session id
+  connection_id uuid not null references bank_connections(id) on delete cascade,
+  user_id      uuid not null references profiles(id) on delete cascade,
+  valid_until  timestamptz,
+  created_at   timestamptz default now()
 );
 ```
-RLS: owner-only `select/insert/update/delete where auth.uid() = user_id` on the
-three user tables; `gocardless_token` has **no policies** (only the service-role
-edge functions touch it). Everything cascades on account delete (GDPR).
+RLS: owner-only `select/insert/update/delete where auth.uid() = user_id` on all
+user tables. No long-lived provider token to store — the API JWT is minted per
+call from the private key (a Supabase secret), so there's no token table.
+Everything cascades on account delete (GDPR).
 
 ---
 
@@ -120,7 +140,9 @@ the caller's JWT (`auth.getUser()`) and acts only on that user's rows.
 | `bank-finalise` | Called after redirect with the requisition ref: pull accounts (steps 6–7), insert `bank_accounts`, mark connection `linked`, do the first transaction sync. |
 | `bank-sync` | Refresh balances + transactions for a user's accounts; upsert by transaction id (idempotent); update balances + `last_synced`; recategorise; emit events. Runs **on demand** and **on a daily cron** (reuse the pg_cron pattern from `notify`, respecting the 4/day limit). |
 
-A shared `gocardless.ts` helper handles token fetch/refresh + the REST calls.
+A shared `enablebanking.ts` helper signs the per-call JWT (RSA) + wraps the REST
+calls. Written behind a small internal interface so a US adapter (Plaid/Teller)
+can slot in later without touching the rest of the app.
 
 ---
 
@@ -163,8 +185,8 @@ This is the part that makes it feel automatic — we reuse the spine already bui
 ## 6. Security & privacy
 
 - Read-only AIS scope — no payment/move-money capability exists.
-- GoCardless secret + tokens are **server-only** (Supabase secrets + service-role
-  table). Never shipped to the client.
+- The Enable Banking **private key** (and the JWTs it signs) are **server-only**
+  (Supabase secrets). Never shipped to the client.
 - Store **minimal PII**: account name, currency, last-4 of IBAN — not the full
   IBAN, not credentials (the bank handles auth on its own hosted page).
 - All tables RLS owner-only; deletion cascades on account delete (GDPR Art. 17).
@@ -191,12 +213,13 @@ This is the part that makes it feel automatic — we reuse the spine already bui
 
 ## 8. What I need from you to start Phase A
 
-- [ ] GoCardless Bank Account Data account created.
-- [ ] `secret_id` + `secret_key` (I'll set them as Supabase secrets — paste them
-      when ready, or set them yourself with the command in §0).
-- [ ] Your country (for the default institution list) and the live redirect URL
-      (your Vercel/custom domain) so the consent screen returns to the right place.
+- [ ] Enable Banking account + an **application** registered (Restricted Production).
+- [ ] **Application ID** + the **RSA private key** (set as Supabase secrets via the
+      command in §0 — you can do it yourself; the private key never goes in the repo).
+- [ ] Your **country** (Belgium?) for the default bank list, and your **live
+      redirect URL** (Vercel/custom domain) registered as an allowed redirect.
 
-Once those exist, I build Phase A end-to-end (DB + functions + UI), you deploy the
-functions + apply the migration (same flow as `notify`), and you connect your own
-bank to test.
+I can scaffold the **provider-agnostic** parts now (DB migration, table shapes,
+client UI skeleton, the internal adapter interface) so they're ready, then wire the
+Enable Banking specifics once your App ID + key exist. You deploy the functions +
+apply the migration (same flow as `notify`) and connect your own bank to test.
