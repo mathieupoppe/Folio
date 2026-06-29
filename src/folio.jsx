@@ -31,6 +31,8 @@ import DebtsTool from "./Debts";
 import { currentStreak, computeAchievements } from "./lib/achievements";
 import { detectEvents } from "./lib/events";
 import { pushState, enablePush, disablePush, sendTestPush } from "./push";
+import BankSettings from "./BankView";
+import { getBankAccounts, bankBalanceTotal, finaliseBank } from "./bank";
 import { exportTransactionsCSV, openPrintableReport } from "./reports";
 import { getRate } from "./fx";
 import { readLock, writeLock } from "./lock";
@@ -793,6 +795,8 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
   const [feedPosts, setFeedPosts] = useState([]); // home feed (own + followed)
   const [likedIds, setLikedIds] = useState(() => new Set()); // post ids the user liked
   const openReports = useOpenReportCount(!!socialProfile?.is_admin); // admin: # of open reports
+  const [bankAccounts, setBankAccounts] = useState([]); // linked bank accounts (Phase A)
+  const refreshBank = () => { if (userId) getBankAccounts(userId).then(setBankAccounts).catch(() => {}); };
 
   // dashboard layout: widget order + hidden set (persisted), plus transient edit mode
   const [dashOrder,  setDashOrder]  = useState(s0.dashOrder  ?? DEFAULT_DASH);
@@ -917,6 +921,25 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
       if (!p) return;
       setDeepView({ id: p.id, author: p.author?.display_name?.trim() || ("@" + p.author?.handle), handle: "@" + p.author?.handle, initial: (p.author?.display_name?.[0] || p.author?.handle?.[0] || "?").toUpperCase(), kind: p.image_url ? "photo" : "text", caption: p.caption, image: p.image_url, media: null });
     }).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId]);
+
+  // Load linked bank accounts, and finish a bank connection when we return from
+  // the bank's consent page (?bank=callback&code=...&state=<connectionId>).
+  useEffect(() => {
+    if (!userId) return;
+    refreshBank();
+    const sp = new URLSearchParams(window.location.search);
+    if (sp.get("bank") === "callback") {
+      const code = sp.get("code"), connId = sp.get("state");
+      const clean = () => { try { window.history.replaceState(null, "", window.location.pathname); } catch {} };
+      if (code && connId) {
+        finaliseBank(code, connId)
+          .then(() => { refreshBank(); setTab("more"); setMoreView("banks"); })
+          .catch(e => window.alert("Couldn't finish connecting your bank: " + (e?.message || e)))
+          .finally(clean);
+      } else clean();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId]);
 
@@ -1145,7 +1168,8 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
     const q = holdingsQuotes.find(x => x.id === h.id);
     return s + (q ? q.price * h.qty : 0);
   }, 0);
-  const totalAssets = sumAmount(assets) + holdingsValue;
+  const bankTotal = bankBalanceTotal(bankAccounts); // linked bank balances → net worth
+  const totalAssets = sumAmount(assets) + holdingsValue + bankTotal;
   const totalLiab   = sumAmount(liabilities);
   const netWorth    = totalAssets - totalLiab;
 
@@ -2181,6 +2205,7 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
             <NavRow label="Notifications" desc="Reminders & alerts" onClick={() => setMoreView("notifications")} />
             <NavRow label="Appearance" desc="Theme & accent color" onClick={() => setMoreView("appearance")} />
             <NavRow label="Your stats" desc="Time in app & fun numbers" onClick={() => setMoreView("stats")} />
+            <NavRow label="Connected banks" desc="Link your bank — balances update automatically" onClick={() => setMoreView("banks")} />
             <NavRow label="Data & backup" desc="Export or import your data" onClick={() => setMoreView("data")} />
             <NavRow label="Privacy" desc="Comment replies & who can interact" onClick={() => setMoreView("privacysettings")} />
             <NavRow label="Security" desc="Passcode & Face ID" onClick={() => setMoreView("security")} />
@@ -2507,6 +2532,11 @@ export default function Folio({ session, onSignOut, onDeleteAccount, theme, setT
                 <p style={{ marginBottom: 0 }}><strong style={{ color: C.text }}>Contact.</strong> mathieu.poppe2008@gmail.com</p>
               </div>
             </Card>
+          </>}
+
+          {moreView === "banks" && <>
+            <BackBar title="Connected banks" onBack={() => setMoreView("menu")} />
+            <BankSettings userId={userId} country={(theme?.currency === "GBP" ? "GB" : theme?.currency === "CHF" ? "CH" : "BE")} onChanged={refreshBank} />
           </>}
 
           {moreView === "terms" && <>

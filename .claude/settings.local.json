@@ -62,7 +62,20 @@
       "Bash(grep -E '\\(^|/\\)package\\\\.json$')",
       "Bash(git commit *)",
       "Bash(git push *)",
-      "Bash(npx vitest *)"
+      "Bash(npx vitest *)",
+      "Bash(npx vite *)",
+      "Bash(npx eslint *)",
+      "Bash(supabase migration *)",
+      "Bash(git checkout *)",
+      "Bash(git merge *)",
+      "Bash(git branch *)",
+      "Bash(npx --yes web-push generate-vapid-keys --json)",
+      "Bash(curl -s -o /dev/null -w \"HTTP %{http_code}\\\\n\" -X POST https://vgohbwwclxbhrbihrehn.functions.supabase.co/notify -H \"x-cron-secret: wrong\")",
+      "Bash(curl -s -X POST https://vgohbwwclxbhrbihrehn.functions.supabase.co/notify -H \"Content-Type: application/json\" -d '{}')",
+      "Bash(curl -s -o /dev/null -w 'HTTP %{http_code}\\\\n' 'https://vgohbwwclxbhrbihrehn.supabase.co/rest/v1/push_subscriptions?select=endpoint&limit=1' -H 'apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZnb2hid3djbHhiaHJiaWhyZWhuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEyMDQxMzAsImV4cCI6MjA5Njc4MDEzMH0._DlKB3GXKUFIv5fUTomEMRAdOKogpIR21pFjXQwxn54' -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZnb2hid3djbHhiaHJiaWhyZWhuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEyMDQxMzAsImV4cCI6MjA5Njc4MDEzMH0._DlKB3GXKUFIv5fUTomEMRAdOKogpIR21pFjXQwxn54')",
+      "Bash(curl -s 'https://vgohbwwclxbhrbihrehn.supabase.co/rest/v1/push_subscriptions?select=endpoint&limit=1' -H 'apikey: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZnb2hid3djbHhiaHJiaWhyZWhuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEyMDQxMzAsImV4cCI6MjA5Njc4MDEzMH0._DlKB3GXKUFIv5fUTomEMRAdOKogpIR21pFjXQwxn54' -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZnb2hid3djbHhiaHJiaWhyZWhuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEyMDQxMzAsImV4cCI6MjA5Njc4MDEzMH0._DlKB3GXKUFIv5fUTomEMRAdOKogpIR21pFjXQwxn54')",
+      "Bash(curl -s -w \"\\\\nHTTP %{http_code}\\\\n\" -X POST https://vgohbwwclxbhrbihrehn.functions.supabase.co/notify -H \"x-cron-secret: wrong\")",
+      "WebSearch"
     ]
   }
 }
